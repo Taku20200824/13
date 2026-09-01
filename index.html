@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="mn">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>13 Хөзөр</title>
+    <meta
+      name="description"
+      content="4 тоглогчтой 13 хөзрийн тоглоомын web хувилбар."
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="game-shell">
+      <section class="topbar" aria-label="Тоглоомын мэдээлэл">
+        <div>
+          <p class="eyebrow">4 тоглогчтой хөзрийн тоглоом</p>
+          <h1>13 Хөзөр</h1>
+        </div>
+        <div class="scoreboard" id="scoreboard" aria-live="polite"></div>
+      </section>
+
+      <section class="table" aria-label="Тоглоомын ширээ">
+        <div class="opponents" id="opponents"></div>
+
+        <div class="center-stage">
+          <div class="pile-panel">
+            <div class="pile-meta">
+              <span id="turnLabel">Тоглогчийн ээлж</span>
+              <span id="passLabel">Пасс: 0</span>
+            </div>
+            <div class="pile" id="pile" aria-live="polite"></div>
+            <p class="message" id="message"></p>
+          </div>
+
+          <aside class="rules-panel">
+            <h2>Дүрэм</h2>
+            <ul>
+              <li>Бүх хөзрөө түрүүлж дуусгасан нь ялна.</li>
+              <li>3♣-тай тоглогч эхэлнэ.</li>
+              <li>Ижил төрөл дээр илүү өндөр хослол тавина.</li>
+              <li>Single, pair, triple, straight, 4-kind, consecutive pairs дэмжинэ.</li>
+            </ul>
+          </aside>
+        </div>
+
+        <div class="player-area">
+          <div class="hand-toolbar">
+            <div>
+              <p class="eyebrow">Таны гар</p>
+              <h2 id="handTitle">13 хөзөр</h2>
+            </div>
+            <div class="actions">
+              <button class="icon-button" id="sortButton" type="button" title="Эрэмбэлэх">
+                ↕
+              </button>
+              <button id="playButton" type="button">Тавих</button>
+              <button id="passButton" type="button">Пасс</button>
+              <button id="newGameButton" type="button">Шинэ тоглоом</button>
+            </div>
+          </div>
+          <div class="hand" id="hand" aria-label="Таны хөзрүүд"></div>
+        </div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>
