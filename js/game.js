@@ -33,7 +33,7 @@ export function createGame(playerDefs, options = {}) {
     log: [],
     lastRound: null,
     gameWinner: null,
-    starterRule: options.starterRule ?? "lowest", // "lowest" | "previousWinner"
+    starterRule: options.starterRule ?? "previousWinner", // "lowest" | "previousWinner"
     previousRoundWinner: null,
   };
   startRound(game, options.seed);
@@ -69,8 +69,8 @@ export function startRound(game, seed) {
     }
   }
 
-  // Хамгийн доод хөзөртэй тоглогч эхэлж, тэр хөзрөө заавал оруулна.
-  // 4 хүнтэй үед энэ нь үргэлж 3♦ болно.
+  // Эхний үед хамгийн доод хөзөртэй тоглогч эхэлнэ.
+  // 4 хүнтэй үед энэ нь 3♦ бөгөөд тэр тоглогч хүссэн хүчинтэй хослолоороо гарна.
   let lowest = null;
   for (const player of active) {
     for (const card of player.hand) {
@@ -81,8 +81,8 @@ export function startRound(game, seed) {
   }
   game.turn = lowest.index;
   game.startingCardId = lowest.card.id;
-  game.mustPlayStartingCard = true;
-  log(game, `${game.players[lowest.index].name} ${lowest.card.rank}${lowest.card.symbol}-өөр эхэлнэ.`);
+  game.mustPlayStartingCard = false;
+  log(game, `${game.players[lowest.index].name} ${lowest.card.rank}${lowest.card.symbol}-тай тул эхэлнэ.`);
   return game;
 }
 
@@ -265,7 +265,7 @@ export function deserializeGame(data, hands = {}) {
     log: data.log ?? [],
     lastRound: data.lastRound ?? null,
     gameWinner: data.gameWinner ?? null,
-    starterRule: data.starterRule ?? "lowest",
+    starterRule: data.starterRule ?? "previousWinner",
     previousRoundWinner: data.previousRoundWinner ?? null,
   };
 }
