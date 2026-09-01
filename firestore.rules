@@ -7,6 +7,10 @@ service cloud.firestore {
       return request.auth != null;
     }
 
+    function shortText(value) {
+      return value is string && value.size() > 0 && value.size() <= 180;
+    }
+
     // ── Хэрэглэгчийн профайл ба ranking ──────────────
     match /users/{uid} {
       // Ranking бүгдэд харагдана
@@ -16,6 +20,15 @@ service cloud.firestore {
       allow delete: if false;
     }
 
+    // ── Нийтийн chat ─────────────────────────────────
+    match /publicChat/{messageId} {
+      allow read: if signedIn();
+      allow create: if signedIn()
+                    && request.resource.data.uid == request.auth.uid
+                    && shortText(request.resource.data.text);
+      allow update, delete: if false;
+    }
+
     // ── Өрөө ─────────────────────────────────────────
     match /rooms/{code} {
       allow read: if signedIn();
@@ -23,7 +36,8 @@ service cloud.firestore {
       // Үүсгэгч нь заавал өөрөө host байна
       allow create: if signedIn()
                     && request.resource.data.host == request.auth.uid
-                    && request.resource.data.status == 'waiting';
+                    && request.resource.data.status == 'waiting'
+                    && request.resource.data.visibility in ['public', 'private'];
 
       // Өрөөнд байгаа хүн (эсвэл нэгдэж буй хүн) шинэчилж чадна
       allow update: if signedIn() && (
@@ -32,6 +46,22 @@ service cloud.firestore {
                     );
 
       allow delete: if signedIn() && request.auth.uid == resource.data.host;
+
+      // ── Өрөөний chat ───────────────────────────────
+      match /messages/{messageId} {
+        function room() {
+          return get(/databases/$(database)/documents/rooms/$(code)).data;
+        }
+        allow read: if signedIn() && (
+                      room().visibility == 'public' ||
+                      request.auth.uid in room().members
+                    );
+        allow create: if signedIn()
+                      && request.auth.uid in room().members
+                      && request.resource.data.uid == request.auth.uid
+                      && shortText(request.resource.data.text);
+        allow update, delete: if false;
+      }
 
       // ── Гар: зөвхөн эзэн нь болон host уншина ──────
       match /hands/{seat} {
