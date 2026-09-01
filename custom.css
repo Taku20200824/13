@@ -55,17 +55,31 @@
 }
 
 .controls {
-  gap: 12px;
+  gap: clamp(14px, 2vw, 26px);
   align-items: center;
 }
 
+.controls .btn {
+  min-width: 132px;
+}
+
 #btnPass {
-  margin-left: clamp(18px, 4vw, 46px);
+  margin-left: clamp(36px, 6vw, 86px);
 }
 
 #btnPass,
 #btnPlay {
-  min-width: 112px;
+  min-width: 142px;
+  padding-inline: 24px;
+}
+
+.leaderboard .lb-empty {
+  color: var(--ink-soft);
+}
+
+.lb-row[data-local-rank] {
+  background: rgba(53, 210, 154, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(53, 210, 154, 0.22);
 }
 
 .hand .card {
@@ -131,8 +145,12 @@
   }
 
   .controls {
-    column-gap: 8px;
-    row-gap: 8px;
+    column-gap: 12px;
+    row-gap: 12px;
+  }
+
+  .controls .btn {
+    min-width: 0;
   }
 
   #btnPass {
@@ -147,5 +165,6 @@
   #btnPass,
   #btnPlay {
     min-width: 0;
+    padding-inline: 10px;
   }
 }
