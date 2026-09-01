@@ -122,6 +122,8 @@ const makeCode = () =>
 
 const roomRef = (code) => mod.doc(db, "rooms", code);
 const handRef = (code, index) => mod.doc(db, "rooms", code, "hands", String(index));
+const roomMessagesRef = (code) => mod.collection(db, "rooms", code, "messages");
+const publicChatRef = () => mod.collection(db, "publicChat");
 
 export async function createRoom(user, options = {}) {
   const seat = {
@@ -139,6 +141,7 @@ export async function createRoom(user, options = {}) {
       code,
       host: user.uid,
       status: "waiting",
+      visibility: options.visibility === "public" ? "public" : "private",
       allowBots: options.allowBots ?? true,
       seats: [seat],
       members: [user.uid],
@@ -202,6 +205,18 @@ export function watchRoom(code, callback) {
   });
 }
 
+export function watchPublicRooms(callback) {
+  const q = mod.query(mod.collection(db, "rooms"), mod.limit(40));
+  return mod.onSnapshot(q, (snap) => {
+    const rows = snap.docs
+      .map((d) => ({ id: d.id, ...d.data() }))
+      .filter((room) => room.visibility === "public" && room.status === "waiting" && (room.seats?.length ?? 0) < 4)
+      .sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0))
+      .slice(0, 12);
+    callback(rows);
+  });
+}
+
 export async function updateRoom(code, patch) {
   await mod.updateDoc(roomRef(code), { ...patch, updatedAt: mod.serverTimestamp() });
 }
@@ -228,4 +243,47 @@ export function watchHand(code, index, callback) {
 export async function readHand(code, index) {
   const snap = await mod.getDoc(handRef(code, index));
   return snap.exists() ? snap.data().cards : [];
+}
+
+/* ── Chat ───────────────────────────────────────── */
+
+const cleanMessage = (text) => String(text ?? "").trim().slice(0, 180);
+const sender = (user) => ({
+  uid: user.uid,
+  name: user.displayName ?? "Зочин",
+  photo: user.photoURL ?? null,
+});
+
+export async function sendPublicChat(user, text) {
+  const message = cleanMessage(text);
+  if (!message) return;
+  await mod.addDoc(publicChatRef(), {
+    ...sender(user),
+    text: message,
+    createdAt: mod.serverTimestamp(),
+  });
+}
+
+export function watchPublicChat(callback) {
+  const q = mod.query(publicChatRef(), mod.orderBy("createdAt", "desc"), mod.limit(40));
+  return mod.onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse());
+  });
+}
+
+export async function sendRoomChat(code, user, text) {
+  const message = cleanMessage(text);
+  if (!message) return;
+  await mod.addDoc(roomMessagesRef(code), {
+    ...sender(user),
+    text: message,
+    createdAt: mod.serverTimestamp(),
+  });
+}
+
+export function watchRoomChat(code, callback) {
+  const q = mod.query(roomMessagesRef(code), mod.orderBy("createdAt", "desc"), mod.limit(40));
+  return mod.onSnapshot(q, (snap) => {
+    callback(snap.docs.map((d) => ({ id: d.id, ...d.data() })).reverse());
+  });
 }
