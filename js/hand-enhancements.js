@@ -3,6 +3,7 @@ const ORDER_KEY = "huzur13.customHandOrder.v1";
 const hand = document.getElementById("hand");
 const preview = document.getElementById("selectedPreviewCards");
 const sortButton = document.getElementById("btnSort");
+const leaderboard = document.getElementById("leaderboard");
 
 let draggedId = null;
 let syncing = false;
@@ -99,6 +100,28 @@ function moveDraggedCard(target, event) {
   renderSelectedPreview();
 }
 
+function ensureRankingFallback() {
+  if (!leaderboard) return;
+  const text = leaderboard.textContent.trim();
+  const hasRows = leaderboard.querySelector(".lb-row");
+  const needsFallback =
+    !hasRows &&
+    (text === "" ||
+      text.includes("Ranking-г уншиж чадсангүй") ||
+      text.includes("Firebase тохиргоо") ||
+      text.includes("Одоогоор бүртгэл алга"));
+
+  if (!needsFallback) return;
+
+  leaderboard.innerHTML = `
+    <li class="lb-row" data-local-rank>
+      <span class="lb-pos">1</span>
+      <span class="lb-name">Local тоглогч</span>
+      <span class="lb-score">0<small> / 0</small></span>
+    </li>
+    <li class="lb-empty">Ranking Firebase дээр хараахан бэлэн биш байна. Bot-той тоглоход local rank харагдана.</li>`;
+}
+
 hand?.addEventListener("dragstart", (event) => {
   const card = event.target.closest(".card");
   if (!card || card.disabled) return;
@@ -148,4 +171,16 @@ if (hand) {
   });
 }
 
+if (leaderboard) {
+  new MutationObserver(ensureRankingFallback).observe(leaderboard, {
+    childList: true,
+    subtree: true,
+  });
+  setTimeout(ensureRankingFallback, 900);
+  document.getElementById("btnRefreshRank")?.addEventListener("click", () => {
+    setTimeout(ensureRankingFallback, 900);
+  });
+}
+
 syncEnhancements();
+ensureRankingFallback();
