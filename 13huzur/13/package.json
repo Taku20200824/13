@@ -1,0 +1,11 @@
+{
+  "name": "huzur-13",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Монгол дүрмээр тоглох 13 хөзрийн онлайн тоглоом",
+  "scripts": {
+    "dev": "npx --yes serve . -l 5173",
+    "test": "node --test test/*.mjs"
+  }
+}
