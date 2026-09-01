@@ -41,6 +41,10 @@ function applySavedOrder() {
     return ai - bi;
   });
 
+  const currentIds = cards.map((card) => card.dataset.id).join("|");
+  const sortedIds = sorted.map((card) => card.dataset.id).join("|");
+  if (currentIds === sortedIds) return;
+
   syncing = true;
   sorted.forEach((card) => hand.appendChild(card));
   syncing = false;
