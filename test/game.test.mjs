@@ -30,19 +30,28 @@ test("шинэ тоглоом: 4 хүнд 13-аар тарааж, 3♦-тэй х
   game.players.forEach((p) => assert.equal(p.hand.length, 13));
   assert.equal(game.startingCardId, "3D");
   assert.ok(game.players[game.turn].hand.some((c) => c.id === "3D"));
-  assert.equal(game.mustPlayStartingCard, true);
+  assert.equal(game.mustPlayStartingCard, false);
 });
 
-test("эхний нүүдэлд 3♦ заавал орно", () => {
+test("3♦-тэй эхлэгч хүссэн хүчинтэй хөзрөөрөө гарч болно", () => {
   const game = createGame(defs, { seed: 7 });
   const starter = game.turn;
   const other = game.players[starter].hand.find((c) => c.id !== "3D");
-  const bad = play(game, starter, [other]);
-  assert.equal(bad.ok, false);
-  assert.match(bad.error, /3♦/);
+  const result = play(game, starter, [other]);
+  assert.equal(result.ok, true);
+});
 
-  const good = play(game, starter, [game.players[starter].hand.find((c) => c.id === "3D")]);
-  assert.equal(good.ok, true);
+test("2-р үеэс өмнөх үеийг хожсон хүн эхэлнэ", () => {
+  const game = createGame(defs, { seed: 7 });
+  rig(game, [h("5D", "10D"), h("6D"), h("8D", "9D"), h("JD")], 1, null);
+
+  const result = play(game, 1, h("6D"));
+  assert.equal(result.roundEnded, true);
+  assert.equal(game.phase, PHASE.ROUND_END);
+
+  nextRound(game, 22);
+  assert.equal(game.turn, 1);
+  assert.equal(game.mustPlayStartingCard, false);
 });
 
 test("ЗАСВАР: ширээ цэвэрлэгдэхэд ээлж түүнийг тавьсан хүнд үлдэнэ", () => {
@@ -149,7 +158,6 @@ test("бүтэн үе — санамсаргүй тоглолт төгсгөл �
       guard += 1;
       const me = game.turn;
       const hand = game.players[me].hand;
-      const required = game.mustPlayStartingCard ? game.startingCardId : null;
       const options = [];
       // энгийн тоглогч: боломжтой бол хамгийн бага нэг хөзөр, үгүй бол пасс
       for (const card of hand) options.push([card]);
