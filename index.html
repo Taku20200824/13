@@ -17,6 +17,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="custom.css" />
   </head>
   <body>
     <!-- ══════════ Нэвтрэх ══════════ -->
@@ -208,6 +209,11 @@
             <div class="selection" id="selection">Хөзөр сонгоно уу</div>
           </div>
 
+          <div class="selected-preview" id="selectedPreview" aria-live="polite">
+            <div class="selected-preview__label">Гаргах хөзөр</div>
+            <div class="selected-preview__cards" id="selectedPreviewCards">Хөзөр сонгоно уу</div>
+          </div>
+
           <div class="hand" id="hand" aria-label="Таны хөзрүүд"></div>
 
           <div class="controls">
@@ -233,5 +239,6 @@
     <div class="toast" id="toast" hidden></div>
 
     <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/hand-enhancements.js"></script>
   </body>
 </html>
