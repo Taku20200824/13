@@ -90,9 +90,30 @@
               <button class="play-card" id="btnCreateRoom" type="button">
                 <span class="play-icon" aria-hidden="true">✚</span>
                 <strong>Өрөө үүсгэх</strong>
-                <small>Найзаа кодоор урина</small>
+                <small>Public эсвэл private host</small>
               </button>
             </div>
+
+            <div class="host-options" role="radiogroup" aria-label="Өрөөний төрөл">
+              <label class="host-option">
+                <input type="radio" name="roomVisibility" value="public" checked />
+                <span><b>Public</b><small>Lobby дээр харагдана</small></span>
+              </label>
+              <label class="host-option">
+                <input type="radio" name="roomVisibility" value="private" />
+                <span><b>Private</b><small>Зөвхөн кодоор орно</small></span>
+              </label>
+            </div>
+
+            <section class="public-rooms" aria-labelledby="publicRoomsTitle">
+              <div class="panel-head panel-head--compact">
+                <h3 id="publicRoomsTitle">Public өрөө</h3>
+                <button class="link" id="btnRefreshPublicRooms" type="button">Шинэчлэх</button>
+              </div>
+              <ul class="public-room-list" id="publicRooms">
+                <li class="social-empty">Ачаалж байна...</li>
+              </ul>
+            </section>
 
             <form class="join-form" id="joinForm">
               <label class="field">
@@ -109,6 +130,19 @@
               <button class="btn" type="submit">Нэгдэх</button>
             </form>
             <p class="hint" id="lobbyHint"></p>
+          </section>
+
+          <section class="panel panel--chat">
+            <div class="panel-head">
+              <h2>Нийтийн chat</h2>
+            </div>
+            <ul class="chat-list" id="publicChatList">
+              <li class="social-empty">Ачаалж байна...</li>
+            </ul>
+            <form class="chat-form" id="publicChatForm">
+              <input id="publicChatInput" type="text" maxlength="180" placeholder="Message..." autocomplete="off" />
+              <button class="btn btn--small btn--primary" type="submit">Илгээх</button>
+            </form>
           </section>
 
           <section class="panel panel--rules">
@@ -158,7 +192,7 @@
           <span id="roomCode">------</span>
           <button class="btn btn--small" id="btnCopyCode" type="button">Хуулах</button>
         </div>
-        <p class="hint">Энэ кодыг найздаа илгээнэ үү. 4 хүн бүрдэхэд эхэлнэ.</p>
+        <p class="hint">Public өрөө lobby дээр харагдана. Private бол зөвхөн кодоор орно.</p>
         <ul class="seat-list" id="seatList"></ul>
         <div class="room-actions">
           <label class="check">
@@ -169,6 +203,16 @@
             Тоглоом эхлүүлэх
           </button>
         </div>
+        <section class="room-chat" aria-label="Өрөөний chat">
+          <h3>Өрөөний chat</h3>
+          <ul class="chat-list chat-list--room" id="roomChatList">
+            <li class="social-empty">Chat хоосон байна.</li>
+          </ul>
+          <form class="chat-form" id="roomChatForm">
+            <input id="roomChatInput" type="text" maxlength="180" placeholder="Message..." autocomplete="off" />
+            <button class="btn btn--small btn--primary" type="submit">Илгээх</button>
+          </form>
+        </section>
         <p class="hint" id="roomHint"></p>
       </div>
     </section>
@@ -239,6 +283,7 @@
     <div class="toast" id="toast" hidden></div>
 
     <script type="module" src="js/main.js"></script>
+    <script type="module" src="js/social.js"></script>
     <script type="module" src="js/hand-enhancements.js"></script>
   </body>
 </html>
