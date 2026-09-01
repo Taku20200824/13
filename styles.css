@@ -765,83 +765,205 @@ input {
   width: 100%;
   margin: 0 auto;
   min-height: 0;
+  min-width: 0;
 }
 
-/* Өрсөлдөгчид */
+/* ── Өрсөлдөгчийн самбар ─────────────────────────
+   Хэн ээлжтэй, хэн пасс хийсэн, хэн юу тавьсныг
+   нэг харцаар ялгах нь энэ хэсгийн гол зорилго. */
 
 .opponents {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px;
+  min-width: 0;
+}
+
+.opponents > * {
+  min-width: 0;
+}
+
+.seat-card {
+  position: relative;
+  padding: 14px 14px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, rgba(28, 62, 51, 0.5), rgba(0, 0, 0, 0.25));
+  transition:
+    opacity 0.25s var(--ease),
+    border-color 0.25s,
+    background 0.25s,
+    transform 0.25s var(--ease);
+}
+
+/* ЭЭЛЖТЭЙ — ногоон гэрэлтсэн хүрээ, бага зэрэг өргөгдөнө */
+.seat-card[data-turn] {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(53, 210, 154, 0.16), rgba(28, 62, 51, 0.4));
+  transform: translateY(-3px);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 26px -6px rgba(53, 210, 154, 0.55);
+  animation: turnPulse 2s ease-in-out infinite;
+}
+
+@keyframes turnPulse {
+  50% {
+    box-shadow:
+      0 0 0 1px var(--accent),
+      0 0 34px -4px rgba(53, 210, 154, 0.75);
+  }
+}
+
+/* ПАСС — бүдгэрч, улаан хүрээтэй болно */
+.seat-card[data-passed] {
+  opacity: 0.5;
+  border-color: rgba(239, 107, 107, 0.4);
+  background: rgba(40, 20, 20, 0.3);
+}
+
+/* ШИРЭЭ ЭЗЭМШИГЧ — алтан хүрээ */
+.seat-card[data-owner]:not([data-turn]) {
+  border-color: rgba(231, 194, 106, 0.5);
+  background: linear-gradient(180deg, rgba(231, 194, 106, 0.09), rgba(0, 0, 0, 0.25));
+}
+
+.seat-card[data-out] {
+  opacity: 0.35;
+  filter: grayscale(0.7);
+}
+
+/* Сүүлийн үйлдлийн бөмбөлөг — самбарын дээр хөвөнө */
+.action-bubble {
+  position: absolute;
+  top: -11px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 3px 12px;
+  border-radius: 99px;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  box-shadow: var(--shadow-1);
+  animation: bubbleIn 0.3s var(--ease);
+  z-index: 2;
+}
+
+@keyframes bubbleIn {
+  from {
+    opacity: 0;
+    transform: translate(-50%, 5px) scale(0.85);
+  }
+}
+
+.action-bubble[data-kind="idle"] {
+  display: none;
+}
+
+.action-bubble[data-kind="play"] {
+  background: linear-gradient(180deg, #3ddba2, var(--accent-deep));
+  color: #04231a;
+}
+
+.action-bubble[data-kind="pass"] {
+  background: #582b2b;
+  color: #ffbdbd;
+  border: 1px solid #7a3d3d;
+}
+
+.action-bubble[data-kind="out"] {
+  background: var(--danger);
+  color: #2b0808;
+}
+
+.seat-head {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 
-.opponent {
-  padding: 12px 14px;
-  border: 1px solid var(--line-soft);
-  border-radius: var(--r-md);
-  background: rgba(0, 0, 0, 0.22);
-  transition:
-    border-color 0.2s,
-    background 0.2s,
-    opacity 0.2s;
+.seat-who {
+  min-width: 0;
+  line-height: 1.25;
 }
 
-.opponent[data-turn] {
-  border-color: var(--accent);
-  background: rgba(53, 210, 154, 0.09);
-  box-shadow: 0 0 0 1px rgba(53, 210, 154, 0.2);
-}
-
-.opponent[data-out] {
-  opacity: 0.42;
-  filter: grayscale(0.6);
-}
-
-.opp-head {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-
-.opp-head strong {
+.seat-who strong {
+  display: block;
   font-size: 14px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.opp-state {
+.seat-who small {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+}
+
+/* Төлөвийн тэмдэг — mobile дээр ч үргэлж харагдана */
+.seat-badge {
   margin-left: auto;
-  font-size: 11px;
-  padding: 2px 8px;
+  flex: none;
+  padding: 4px 10px;
   border-radius: 99px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.seat-badge[data-kind="cards"] {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--ink-soft);
+  letter-spacing: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.seat-badge[data-kind="turn"] {
+  background: var(--accent);
+  color: #04231a;
+}
+
+.seat-badge[data-kind="pass"] {
+  background: rgba(239, 107, 107, 0.2);
+  color: #f09b9b;
+}
+
+.seat-badge[data-kind="out"] {
+  background: var(--danger);
+  color: #2b0808;
+}
+
+.seat-badge[data-kind="wait"] {
   background: rgba(255, 255, 255, 0.07);
   color: var(--ink-faint);
-  flex: none;
 }
 
-.opp-state[data-kind="pass"] {
-  background: rgba(239, 107, 107, 0.15);
-  color: #e88b8b;
-}
-
-.opp-state[data-kind="out"] {
-  background: rgba(239, 107, 107, 0.2);
-  color: var(--danger);
-}
-
-.opp-meta {
+.mini-hand {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 9px;
-  font-size: 12px;
-  color: var(--ink-faint);
+  gap: 2px;
+  margin-top: 11px;
+  min-height: 24px;
+  flex-wrap: wrap;
+}
+
+.card-back {
+  width: 15px;
+  height: 24px;
+  border-radius: 3px;
+  background:
+    linear-gradient(150deg, rgba(255, 255, 255, 0.14), transparent 60%),
+    repeating-linear-gradient(45deg, #22553f 0 3px, #17402f 3px 6px);
+  border: 1px solid #2f6b52;
+  flex: none;
 }
 
 .score-bar {
   height: 4px;
-  margin-top: 7px;
+  margin-top: 9px;
   border-radius: 99px;
   background: rgba(255, 255, 255, 0.08);
   overflow: hidden;
@@ -859,23 +981,6 @@ input {
   background: linear-gradient(90deg, var(--warn), var(--danger));
 }
 
-.mini-hand {
-  display: flex;
-  gap: 2px;
-  margin-top: 9px;
-  min-height: 22px;
-}
-
-.card-back {
-  width: 15px;
-  height: 22px;
-  border-radius: 3px;
-  background:
-    repeating-linear-gradient(45deg, #1e4a3c 0 3px, #16382d 3px 6px);
-  border: 1px solid #2b5f4e;
-  flex: none;
-}
-
 /* Ширээний төв */
 
 .center {
@@ -886,19 +991,32 @@ input {
   border: 1px solid var(--line-soft);
   border-radius: var(--r-lg);
   background:
-    radial-gradient(560px 220px at 50% 50%, rgba(53, 210, 154, 0.07), transparent 70%),
-    rgba(0, 0, 0, 0.2);
+    radial-gradient(620px 260px at 50% 45%, rgba(53, 210, 154, 0.09), transparent 72%),
+    linear-gradient(180deg, rgba(23, 60, 47, 0.35), rgba(0, 0, 0, 0.28));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
   min-height: 0;
 }
 
 .pile-owner {
-  margin: 0 0 8px;
+  margin: 0 0 12px;
   text-align: center;
-  font-size: 12px;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--ink-faint);
-  min-height: 1.2em;
+  min-height: 26px;
+}
+
+.pile-chip {
+  display: inline-block;
+  padding: 5px 14px;
+  border-radius: 99px;
+  background: rgba(231, 194, 106, 0.14);
+  border: 1px solid rgba(231, 194, 106, 0.32);
+  color: var(--gold);
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.pile-chip b {
+  font-weight: 700;
+  color: #f5dda2;
 }
 
 .pile {
@@ -1005,7 +1123,7 @@ input {
   display: grid;
   justify-items: center;
   line-height: 1;
-  width: 1.1em;
+  width: 1.4em; /* "10" багтахаар — давхарласан үед энэ хэсэг л харагдана */
   font-size: 15px;
 }
 
@@ -1084,6 +1202,24 @@ input {
   border-radius: var(--r-lg);
   background: rgba(0, 0, 0, 0.24);
   padding: 12px 14px 14px;
+  transition:
+    border-color 0.25s,
+    box-shadow 0.25s,
+    background 0.25s;
+}
+
+.you[data-turn] {
+  border-color: var(--accent);
+  background: linear-gradient(180deg, rgba(53, 210, 154, 0.1), rgba(0, 0, 0, 0.24));
+  box-shadow: 0 0 30px -10px rgba(53, 210, 154, 0.6);
+}
+
+.you[data-passed] {
+  border-color: rgba(239, 107, 107, 0.35);
+}
+
+.you-id .seat-badge {
+  margin-left: 4px;
 }
 
 .you-head {
@@ -1289,44 +1425,67 @@ input {
   }
 
   .opponents {
-    grid-template-columns: repeat(3, 1fr);
+    /* minmax(0,1fr) — багана агуулгаасаа өргөсөж, хуудсыг хэвтээ гүйлгэхээс сэргийлнэ */
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 6px;
   }
 
-  .opponent {
-    padding: 9px 8px;
-  }
-
-  .opp-head strong {
-    font-size: 12px;
-  }
-
-  .opp-head .avatar {
-    width: 24px;
-    height: 24px;
-    font-size: 11px;
-  }
-
-  .opp-state {
+  /* Нарийн дэлгэцэд нэр, төлөв хоёрт зай өгөхийн тулд аватарыг нуух */
+  .seat-head .avatar {
     display: none;
   }
 
+  .seat-card {
+    padding: 10px 8px 9px;
+  }
+
+  .seat-who strong {
+    font-size: 12px;
+  }
+
+  .seat-who small {
+    font-size: 10.5px;
+  }
+
+  .seat-badge {
+    padding: 3px 6px;
+    font-size: 9px;
+    letter-spacing: 0.02em;
+  }
+
+  .action-bubble {
+    font-size: 10px;
+    padding: 2px 9px;
+    top: -9px;
+  }
+
   .mini-hand {
-    flex-wrap: wrap;
-    min-height: 16px;
+    min-height: 15px;
+    gap: 1.5px;
   }
 
   .card-back {
     width: 9px;
-    height: 14px;
+    height: 15px;
   }
 
   .card .big {
     font-size: 20px;
   }
 
+  /* Салаа болгож давхарласан үед "10" багтахын тулд булангийн
+     тэмдэглэгээг нарийсгаж, зүүн зайг багасгана */
+  .card {
+    padding: 5px 5px;
+  }
+
   .card .index {
-    font-size: 13px;
+    font-size: 12px;
+    width: 1.5em;
+  }
+
+  .card .index b {
+    letter-spacing: -0.07em;
   }
 
   /* Намхан хөзөрт доод булангийн тэмдэглэгээ багтахгүй */

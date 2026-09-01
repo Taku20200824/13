@@ -90,49 +90,66 @@ function avatarNode(player) {
 export function renderOpponents(game, myIndex) {
   const wrap = $("opponents");
   wrap.innerHTML = "";
+  const passedSet = game.passed?.has ? game.passed : new Set(game.passed ?? []);
+
   game.players
     .filter((p) => p.index !== myIndex)
     .forEach((player) => {
       const count = player.handCount ?? player.hand.length;
+      const isTurn = player.index === game.turn && game.phase === "playing";
+      const hasPassed = passedSet.has(player.index);
+
       const node = document.createElement("article");
-      node.className = "opponent";
-      if (player.index === game.turn && game.phase === "playing") node.setAttribute("data-turn", "");
+      node.className = "seat-card";
+      if (isTurn) node.setAttribute("data-turn", "");
+      if (hasPassed) node.setAttribute("data-passed", "");
       if (player.eliminated) node.setAttribute("data-out", "");
+      if (player.index === game.tableOwner) node.setAttribute("data-owner", "");
+
+      // Сүүлийн үйлдлийн бөмбөлөг — хэн юу хийснийг шууд харуулна
+      const bubble = document.createElement("div");
+      bubble.className = "action-bubble";
+      if (player.eliminated) {
+        bubble.dataset.kind = "out";
+        bubble.textContent = "хасагдлаа";
+      } else if (hasPassed) {
+        bubble.dataset.kind = "pass";
+        bubble.textContent = "пасс";
+      } else if (player.lastAction?.kind === "play") {
+        bubble.dataset.kind = "play";
+        bubble.textContent = player.lastAction.label;
+      } else {
+        bubble.dataset.kind = "idle";
+        bubble.textContent = "";
+      }
+      node.appendChild(bubble);
 
       const head = document.createElement("div");
-      head.className = "opp-head";
+      head.className = "seat-head";
       head.appendChild(avatarNode(player));
-      const name = document.createElement("strong");
-      name.textContent = player.name;
-      head.appendChild(name);
 
-      const state = document.createElement("span");
-      state.className = "opp-state";
+      const who = document.createElement("div");
+      who.className = "seat-who";
+      who.innerHTML = `<strong>${escapeText(player.name)}</strong><small>${player.score} оноо</small>`;
+      head.appendChild(who);
+
+      const badge = document.createElement("span");
+      badge.className = "seat-badge";
       if (player.eliminated) {
-        state.dataset.kind = "out";
-        state.textContent = "хасагдсан";
-      } else if (game.passed.has?.(player.index) ?? game.passed?.includes?.(player.index)) {
-        state.dataset.kind = "pass";
-        state.textContent = "пасс";
-      } else if (player.index === game.turn) {
-        state.textContent = "ээлж";
+        badge.dataset.kind = "out";
+        badge.textContent = "хасагдсан";
+      } else if (isTurn) {
+        badge.dataset.kind = "turn";
+        badge.textContent = "ээлж";
+      } else if (hasPassed) {
+        badge.dataset.kind = "pass";
+        badge.textContent = "пасс";
       } else {
-        state.textContent = `${count}`;
+        badge.dataset.kind = "cards";
+        badge.textContent = `${count}`;
       }
-      head.appendChild(state);
+      head.appendChild(badge);
       node.appendChild(head);
-
-      const meta = document.createElement("div");
-      meta.className = "opp-meta";
-      meta.innerHTML = `<span>${count} хөзөр</span><span>${player.score} оноо</span>`;
-      node.appendChild(meta);
-
-      const bar = document.createElement("div");
-      bar.className = "score-bar";
-      const pct = Math.min(100, (player.score / ELIMINATION_SCORE) * 100);
-      if (pct >= 70) bar.setAttribute("data-danger", "");
-      bar.innerHTML = `<i style="width:${pct}%"></i>`;
-      node.appendChild(bar);
 
       const mini = document.createElement("div");
       mini.className = "mini-hand";
@@ -143,19 +160,34 @@ export function renderOpponents(game, myIndex) {
       }
       node.appendChild(mini);
 
+      const bar = document.createElement("div");
+      bar.className = "score-bar";
+      const pct = Math.min(100, (player.score / ELIMINATION_SCORE) * 100);
+      if (pct >= 70) bar.setAttribute("data-danger", "");
+      bar.innerHTML = `<i style="width:${pct}%"></i>`;
+      node.appendChild(bar);
+
       wrap.appendChild(node);
     });
 }
+
+const escapeText = (text) =>
+  String(text).replace(
+    /[&<>"']/g,
+    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
+  );
 
 export function renderPile(game) {
   const pile = $("pile");
   pile.innerHTML = "";
   const owner = $("pileOwner");
   if (!game.table) {
-    owner.textContent = "";
+    owner.innerHTML = "";
     return;
   }
-  owner.textContent = `${game.players[game.tableOwner]?.name ?? ""} · ${game.table.label.split(" (")[0]}`;
+  const player = game.players[game.tableOwner];
+  const comboName = game.table.label.split(" (")[0];
+  owner.innerHTML = `<span class="pile-chip"><b>${escapeText(player?.name ?? "")}</b> тавив · ${escapeText(comboName)}</span>`;
   game.table.cards.forEach((card) => pile.appendChild(cardNode(card)));
 }
 
@@ -204,6 +236,26 @@ export function renderStatus(game, myIndex) {
   avatar.textContent = initials(me.name);
 
   const myTurn = game.turn === myIndex && game.phase === "playing";
+  const passedSet = game.passed?.has ? game.passed : new Set(game.passed ?? []);
+  const you = $("you");
+  you.toggleAttribute("data-turn", myTurn);
+  you.toggleAttribute("data-passed", passedSet.has(myIndex));
+
+  const status = $("youStatus");
+  if (me.eliminated) {
+    status.dataset.kind = "out";
+    status.textContent = "хасагдсан";
+  } else if (myTurn) {
+    status.dataset.kind = "turn";
+    status.textContent = "таны ээлж";
+  } else if (passedSet.has(myIndex)) {
+    status.dataset.kind = "pass";
+    status.textContent = "пасс хийсэн";
+  } else {
+    status.dataset.kind = "wait";
+    status.textContent = "хүлээж байна";
+  }
+
   $("btnPlay").disabled = !myTurn;
   $("btnPass").disabled = !myTurn || !game.table;
   $("btnHint").disabled = !myTurn;

@@ -1,7 +1,7 @@
 // Тоглоомын цөм — DOM-оос ангид, цэвэр төлөвийн машин.
 // UI болон Firestore хоёулаа үүнийг ашиглана.
 import { makeDeck, shuffle, sortByValue, cardValue } from "./cards.js";
-import { detect, beats, rejectReason } from "./rules.js";
+import { detect, beats, rejectReason, COMBO_NAMES as COMBO_LABELS } from "./rules.js";
 import { settleRound, ELIMINATION_SCORE } from "./scoring.js";
 
 export const PHASE = {
@@ -20,6 +20,7 @@ export function createGame(playerDefs, options = {}) {
       hand: [],
       score: 0,
       eliminated: false,
+      lastAction: null, // { kind: "play" | "pass", label }
     })),
     round: 0,
     phase: PHASE.PLAYING,
@@ -48,6 +49,7 @@ export function startRound(game, seed) {
   game.tableOwner = null;
   game.passed = new Set();
   game.lastRound = null;
+  game.players.forEach((p) => (p.lastAction = null));
 
   const active = activePlayers(game);
   const deck = shuffle(makeDeck(), seed);
@@ -118,6 +120,10 @@ export function play(game, playerIndex, cards) {
   game.tableOwner = playerIndex;
   game.passed = new Set();
   game.mustPlayStartingCard = false;
+  game.players.forEach((p) => {
+    if (p.index !== playerIndex) p.lastAction = p.lastAction?.kind === "pass" ? p.lastAction : null;
+  });
+  player.lastAction = { kind: "play", label: COMBO_LABELS[combo.type] ?? combo.type, size: combo.size };
   log(game, `${player.name}: ${combo.label}`);
 
   if (player.hand.length === 0) {
@@ -135,6 +141,7 @@ export function pass(game, playerIndex) {
   if (!game.table) return { ok: false, error: "Ширээ цэвэрхэн үед пасс хийж болохгүй." };
 
   game.passed.add(playerIndex);
+  game.players[playerIndex].lastAction = { kind: "pass" };
   log(game, `${game.players[playerIndex].name} пасс`);
   advance(game);
   return { ok: true };
@@ -156,6 +163,9 @@ function advance(game) {
       game.table = null;
       game.tableOwner = null;
       game.passed = new Set();
+      game.players.forEach((p) => {
+        if (p.lastAction?.kind === "pass") p.lastAction = null;
+      });
       log(game, `${game.players[game.turn].name} ширээг авч, шинээр эхэлнэ.`);
       return;
     }
@@ -213,6 +223,7 @@ export function serializeGame(game) {
       handCount: p.hand.length,
       score: p.score,
       eliminated: p.eliminated,
+      lastAction: p.lastAction ?? null,
     })),
     round: game.round,
     phase: game.phase,
