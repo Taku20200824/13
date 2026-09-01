@@ -1,0 +1,151 @@
+/* Нэмэлт UI сайжруулалт: сонгосон хөзрийн preview, товчны зай, drag reorder */
+
+.selected-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 14px;
+  margin: 14px auto 4px;
+  width: min(760px, 100%);
+  min-height: 134px;
+  padding: 14px 16px;
+  border: 1px solid rgba(53, 210, 154, 0.28);
+  border-radius: var(--r-md);
+  background:
+    radial-gradient(360px 120px at 50% 50%, rgba(53, 210, 154, 0.12), transparent 72%),
+    rgba(0, 0, 0, 0.22);
+}
+
+.selected-preview__label {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  min-width: 112px;
+  padding: 8px 12px;
+  border-right: 1px solid var(--line-soft);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.selected-preview__cards {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 106px;
+  color: var(--ink-faint);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+
+.selected-preview__cards .card {
+  --card-w: 82px;
+  --card-h: 116px;
+  transform: none !important;
+  cursor: default;
+}
+
+.selected-preview__cards .card .big {
+  font-size: 33px;
+}
+
+.controls {
+  gap: 12px;
+  align-items: center;
+}
+
+#btnPass {
+  margin-left: clamp(18px, 4vw, 46px);
+}
+
+#btnPass,
+#btnPlay {
+  min-width: 112px;
+}
+
+.hand .card {
+  touch-action: none;
+}
+
+.hand .card[draggable="true"] {
+  cursor: grab;
+}
+
+.hand .card[draggable="true"]:active {
+  cursor: grabbing;
+}
+
+.hand .card[data-dragging] {
+  opacity: 0.5;
+  transform: translateY(-12px) scale(0.96);
+}
+
+.hand .card[data-drop-left] {
+  box-shadow:
+    -5px 0 0 var(--accent),
+    var(--shadow-3);
+}
+
+.hand .card[data-drop-right] {
+  box-shadow:
+    5px 0 0 var(--accent),
+    var(--shadow-3);
+}
+
+@media (max-width: 700px) {
+  .selected-preview {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    min-height: 118px;
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .selected-preview__label {
+    min-width: 0;
+    min-height: 24px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+    padding: 0 0 7px;
+  }
+
+  .selected-preview__cards {
+    justify-content: flex-start;
+    min-height: 82px;
+    padding-bottom: 4px;
+  }
+
+  .selected-preview__cards .card {
+    --card-w: 58px;
+    --card-h: 82px;
+    margin-left: 0 !important;
+  }
+
+  .selected-preview__cards .card .big {
+    font-size: 22px;
+  }
+
+  .controls {
+    column-gap: 8px;
+    row-gap: 8px;
+  }
+
+  #btnPass {
+    grid-column: 1 / 2;
+    margin-left: 0;
+  }
+
+  #btnPlay {
+    grid-column: 2 / 4;
+  }
+
+  #btnPass,
+  #btnPlay {
+    min-width: 0;
+  }
+}
