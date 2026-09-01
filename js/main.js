@@ -276,6 +276,7 @@ function enterRoom(code) {
   clearSubscriptions();
   app.roomCode = code;
   app.mode = "online";
+  app.myHand = null;
   $("roomCode").textContent = code;
   setHint("roomHint", "");
   showScreen("room");
@@ -332,12 +333,12 @@ function renderRoom(room) {
 
   $("allowBots").checked = Boolean(room.allowBots);
   $("allowBots").disabled = !isHost();
-  const ready = room.allowBots ? room.seats.length >= 2 : room.seats.length === 4;
+  const ready = room.allowBots ? room.seats.length >= 1 : room.seats.length === 4;
   $("btnStartRoom").disabled = !isHost() || !ready;
   $("btnStartRoom").textContent = isHost() ? "Тоглоом эхлүүлэх" : "Хостыг хүлээж байна…";
   setHint(
     "roomHint",
-    ready ? "" : room.allowBots ? "Дор хаяж 2 хүн хэрэгтэй." : "4 хүн бүрдэх хүртэл хүлээнэ.",
+    ready ? "" : room.allowBots ? "Bot-оор нөхөөд ганцаараа эхэлж болно." : "4 хүн бүрдэх хүртэл хүлээнэ.",
   );
 }
 
@@ -345,15 +346,26 @@ async function handleStartRoom() {
   if (!isHost()) return;
   const room = app.room;
   const seats = [...room.seats];
-  if (room.allowBots) {
-    let b = 0;
-    while (seats.length < 4) {
-      seats.push({ uid: `bot-${b}`, name: BOT_NAMES[b], photo: null, isBot: true });
-      b += 1;
-    }
+  const ready = room.allowBots ? seats.length >= 1 : seats.length === 4;
+  if (!ready) {
+    setHint("roomHint", room.allowBots ? "Bot-оор нөхөөд ганцаараа эхэлж болно." : "4 хүн бүрдэх хэрэгтэй.", true);
+    return;
   }
-  const game = createGame(seats.map((s) => ({ id: s.uid, name: s.name, isBot: s.isBot })));
-  await publishGame(game, seats, "playing");
+
+  try {
+    if (room.allowBots) {
+      let b = 0;
+      while (seats.length < 4) {
+        seats.push({ uid: `bot-${b}`, name: BOT_NAMES[b], photo: null, isBot: true });
+        b += 1;
+      }
+    }
+    const game = createGame(seats.map((s) => ({ id: s.uid, name: s.name, isBot: s.isBot })));
+    await publishGame(game, seats, "playing");
+  } catch (error) {
+    console.error(error);
+    setHint("roomHint", friendlyError(error), true);
+  }
 }
 
 /** Хост: гарыг тус тусад нь бичээд, нийтийн төлөвийг шинэчилнэ. */
@@ -392,19 +404,19 @@ function onRoomState(room) {
   if (!handUnsub) {
     handUnsub = fb.watchHand(app.roomCode, app.myIndex, (cards) => {
       app.myHand = cards;
-      rebuild(room);
+      rebuild(app.room ?? room);
     });
     app.unsub.push(() => {
       handUnsub?.();
       handUnsub = null;
     });
   }
-  rebuild(room);
+  if (Array.isArray(app.myHand)) rebuild(room);
 }
 
 function rebuild(room) {
-  if (!room.state) return;
-  app.game = deserializeGame(room.state, { [app.myIndex]: app.myHand ?? [] });
+  if (!room.state || !Array.isArray(app.myHand)) return;
+  app.game = deserializeGame(room.state, { [app.myIndex]: app.myHand });
   showScreen("game");
   draw();
 
@@ -655,6 +667,7 @@ function clearSubscriptions() {
   });
   app.unsub = [];
   handUnsub = null;
+  app.myHand = null;
 }
 
 /* ══════════ Туслах ══════════ */
