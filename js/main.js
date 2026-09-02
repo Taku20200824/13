@@ -227,7 +227,7 @@ async function loadLeaderboard() {
       li.innerHTML = `
         <span class="lb-pos">${i + 1}</span>
         <span class="lb-name">${escapeHtml(row.displayName ?? "Зочин")}</span>
-        <span class="lb-score">${row.wins ?? 0}<small> / ${row.games ?? 0}</small></span>`;
+        <span class="lb-score">${row.rating ?? 0}<small> оноо · ${row.wins ?? 0}/${row.games ?? 0}</small></span>`;
       list.appendChild(li);
     });
   } catch (error) {
