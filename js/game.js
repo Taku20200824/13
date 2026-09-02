@@ -1,6 +1,6 @@
 // Тоглоомын цөм — DOM-оос ангид, цэвэр төлөвийн машин.
 // UI болон Firestore хоёулаа үүнийг ашиглана.
-import { makeDeck, shuffle, sortByValue, cardValue } from "./cards.js";
+import { dealHands, sortByValue, cardValue } from "./cards.js";
 import { detect, beats, rejectReason, COMBO_NAMES as COMBO_LABELS } from "./rules.js";
 import { settleRound, ELIMINATION_SCORE } from "./scoring.js";
 
@@ -68,9 +68,9 @@ export function startRound(game, seed) {
   });
 
   const active = activePlayers(game);
-  const deck = shuffle(makeDeck(), seed);
+  const hands = dealHands(active.length, 13, seed);
   active.forEach((player, i) => {
-    player.hand = sortByValue(deck.slice(i * 13, i * 13 + 13));
+    player.hand = sortByValue(hands[i]);
   });
   game.players.filter((p) => p.eliminated).forEach((p) => (p.hand = []));
 
