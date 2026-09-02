@@ -76,6 +76,21 @@ function stopLobbySocial() {
   publicChatUnsub = null;
 }
 
+/** Хэт хурдан бичихэд ойлгомжтой мэдэгдэл өгнө. */
+function showChatError(error, listId) {
+  if (error?.name === "ChatThrottleError") {
+    const list = $(listId);
+    if (!list) return;
+    const li = document.createElement("li");
+    li.className = "social-empty";
+    li.textContent = error.message;
+    list.appendChild(li);
+    setTimeout(() => li.remove(), 2000);
+    return;
+  }
+  console.error(error);
+}
+
 function wireSocialEvents() {
   $("btnRefreshPublicRooms")?.addEventListener("click", () => {
     stopLobbySocial();
@@ -88,7 +103,7 @@ function wireSocialEvents() {
     const text = input?.value ?? "";
     if (!text.trim() || !user) return;
     input.value = "";
-    await fb.sendPublicChat(user, text).catch(console.error);
+    await fb.sendPublicChat(user, text).catch((error) => showChatError(error, "publicChatList"));
   });
 
   $("roomChatForm")?.addEventListener("submit", async (event) => {
@@ -97,7 +112,9 @@ function wireSocialEvents() {
     const text = input?.value ?? "";
     if (!text.trim() || !user || !activeRoomChatCode) return;
     input.value = "";
-    await fb.sendRoomChat(activeRoomChatCode, user, text).catch(console.error);
+    await fb.sendRoomChat(activeRoomChatCode, user, text).catch((error) =>
+      showChatError(error, "roomChatList"),
+    );
   });
 }
 

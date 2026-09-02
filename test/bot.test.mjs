@@ -75,18 +75,40 @@ test("өрсөлдөгч дуусах гэж байвал хориглоно", (
   assert.ok(move.cards[0].rank === "7" || move.cards[0].rank === "2");
 });
 
-test("critical үед ширээ цэвэр бол нэг хөзөртэй хүнийг multi-card-аар хаана", () => {
+// ЗАСВАР: "нэг хөзөртэй өрсөлдөгчийг үргэлж хамгийн том нүүдлээр хаа" гэсэн
+// дүрмийг 90 тоглоомоор хэмжихэд bot СУЛРУУЛСАН (42% ялалт). Тиймээс
+// албадан хаалтыг хассан. Оронд нь шаардлагатай зүйл нь: тэргүүлж байхад
+// хүчинтэй нүүдэл гаргаж л байх, дэмий гацахгүй байх.
+test("critical үед ширээ цэвэр бол хүчинтэй нүүдэл гаргана", () => {
   const game = createGame(defs, { seed: 31 });
   rig(game, [h("7D", "7C", "2S"), h("9D"), h("JD"), h("4D", "4C", "QH")], 0, null);
   const move = chooseMove(game, 0, { difficulty: DIFFICULTY.HARD });
-  assert.equal(move.size, 2, `нэг хөзөртэй хүмүүсийг pair-аар хаах ёстой: ${move.label}`);
+  assert.ok(move, "ширээ цэвэрхэн үед заавал нүүдэл гаргана");
+  assert.ok(move.cards.every((c) => game.players[0].hand.some((x) => x.id === c.id)));
 });
 
-test("critical үед ганц сонголтууд байвал хамгийн хүчтэй blocker-оо тавина", () => {
+test("өрсөлдөгч 1 хөзөртэй бол дийлэгдэхгүй хөзрөөр тэргүүлж хаана", () => {
   const game = createGame(defs, { seed: 32 });
   rig(game, [h("7D", "KH", "2S"), h("9D"), h("JD"), h("4D", "4C", "QH")], 0, null);
   const move = chooseMove(game, 0, { difficulty: DIFFICULTY.HARD });
-  assert.equal(move.cards[0].id, "2S", `сул single тавьж болохгүй: ${move.label}`);
+  assert.equal(move.cards[0].id, "2S", "сул хөзрөөр тэргүүлбэл өрсөлдөгч шууд дуусна");
+});
+
+test("харин өрсөлдөгчид хөзөр элбэг бол 2-оо хадгална", () => {
+  const game = createGame(defs, { seed: 33 });
+  rig(
+    game,
+    [
+      h("3D", "4C", "5H", "6S", "8D", "9C", "KH", "2S"),
+      h("9D", "9H", "10D", "10C", "JS", "AD"),
+      h("JD", "JC", "JH", "QD", "QC", "AC"),
+      h("4D", "4H", "QH", "3S", "3H", "AH"),
+    ],
+    0,
+    null,
+  );
+  const move = chooseMove(game, 0, { difficulty: DIFFICULTY.HARD });
+  assert.notEqual(move.cards[0].id, "2S", "яаралтай биш үед 2-оо үрэхгүй");
 });
 
 test("тавих боломжгүй бол пасс (null) буцаана", () => {

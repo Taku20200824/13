@@ -378,6 +378,7 @@ export async function startGameTransaction(code, uid, buildGame) {
       status: "playing",
       seats: serializeSeats(built.seats),
       state: built.state,
+      stateVersion: 1,
       startedAt: Date.now(),
       gameId: `${code}-${Date.now()}`,
       hostSeenAt: Date.now(),
@@ -458,6 +459,60 @@ export function watchPresence(callback) {
   });
 }
 
+/**
+ * Нүүдлийг ГҮЙЛГЭЭГЭЭР бичнэ.
+ *
+ * Өмнө нь гар болон төлөвийг хамгаалалтгүй дарж бичдэг байсан тул
+ * host-ын bot гинж ба хүний нүүдэл давхцахад нэг нь нөгөөгөө дарж,
+ * хөзөр "буцаж ирдэг" алдаа гарах боломжтой байв.
+ *
+ * Хамгаалалт:
+ *   • ээлж яг тухайн суудалд байгаа эсэх
+ *   • stateVersion өөрчлөгдөөгүй эсэх (өөр хүн бичээгүй)
+ * Аль нэг нь зөрвөл бичихгүй — client шинэ snapshot дээрээс дахин боднo.
+ *
+ * @returns {Promise<{ok:boolean, reason?:string, version?:number}>}
+ */
+export async function commitMove(code, { seatIndex, expectedVersion, state, hand, uid }) {
+  let outcome = { ok: false, reason: "unknown" };
+  try {
+    await mod.runTransaction(db, async (tx) => {
+      const ref = roomRef(code);
+      const snap = await tx.get(ref);
+      if (!snap.exists()) {
+        outcome = { ok: false, reason: "room-gone" };
+        return;
+      }
+      const data = snap.data();
+      if (data.status !== "playing") {
+        outcome = { ok: false, reason: "not-playing" };
+        return;
+      }
+      const current = data.state;
+      if (!current || current.turn !== seatIndex) {
+        outcome = { ok: false, reason: "not-your-turn" };
+        return;
+      }
+      const version = data.stateVersion ?? 0;
+      if (expectedVersion !== undefined && expectedVersion !== null && version !== expectedVersion) {
+        outcome = { ok: false, reason: "stale" };
+        return;
+      }
+
+      if (hand) tx.set(handRef(code, seatIndex), { uid: uid ?? null, cards: hand });
+      tx.update(ref, {
+        state,
+        stateVersion: version + 1,
+        updatedAt: mod.serverTimestamp(),
+      });
+      outcome = { ok: true, version: version + 1 };
+    });
+  } catch (error) {
+    outcome = { ok: false, reason: error?.message ?? "error" };
+  }
+  return outcome;
+}
+
 export async function updateRoom(code, patch) {
   await mod.updateDoc(roomRef(code), { ...patch, updatedAt: mod.serverTimestamp() });
 }
@@ -495,12 +550,47 @@ const sender = (user) => ({
   photo: user.photoURL ?? null,
 });
 
+/* ── Chat: хэт олон мессеж илгээхээс хамгаална ──────
+   Клиент талын хязгаар + баримт дээрх `createdMs` нь дүрэмтэй
+   хамт ажиллаж, спам болон хуурамч цагийг барина. */
+
+const CHAT_COOLDOWN_MS = 1500;
+const CHAT_BURST = 5; // 15 секундэд дээд тал нь
+const CHAT_WINDOW_MS = 15_000;
+const chatHistory = [];
+
+export class ChatThrottleError extends Error {
+  constructor(waitMs) {
+    super(`Түр хүлээнэ үү (${Math.ceil(waitMs / 100) / 10}с)`);
+    this.name = "ChatThrottleError";
+    this.waitMs = waitMs;
+  }
+}
+
+function checkChatRate() {
+  const now = Date.now();
+  while (chatHistory.length && now - chatHistory[0] > CHAT_WINDOW_MS) chatHistory.shift();
+
+  // `last &&` гэвэл timestamp 0 үед шалгалт алгасагдана — undefined-ээр шалгана
+  const last = chatHistory.at(-1);
+  if (last !== undefined && now - last < CHAT_COOLDOWN_MS) {
+    throw new ChatThrottleError(CHAT_COOLDOWN_MS - (now - last));
+  }
+  if (chatHistory.length >= CHAT_BURST) {
+    throw new ChatThrottleError(CHAT_WINDOW_MS - (now - chatHistory[0]));
+  }
+  chatHistory.push(now);
+  return now;
+}
+
 export async function sendPublicChat(user, text) {
   const message = cleanMessage(text);
   if (!message) return;
+  const now = checkChatRate();
   await mod.addDoc(publicChatRef(), {
     ...sender(user),
     text: message,
+    createdMs: now,
     createdAt: mod.serverTimestamp(),
   });
 }
@@ -515,9 +605,11 @@ export function watchPublicChat(callback) {
 export async function sendRoomChat(code, user, text) {
   const message = cleanMessage(text);
   if (!message) return;
+  const now = checkChatRate();
   await mod.addDoc(roomMessagesRef(code), {
     ...sender(user),
     text: message,
+    createdMs: now,
     createdAt: mod.serverTimestamp(),
   });
 }

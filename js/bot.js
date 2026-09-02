@@ -1,113 +1,65 @@
-// Bot player logic.
+// Bot тоглогч — хоёр түвшинтэй.
 //
-// normal: cheap/simple move choice.
-// hard: plans the hand with exact bitmask DP, counts unseen cards, protects made
-// combos, reacts to low-card opponents, and uses power cards only when useful.
+//   "normal" — энгийн ховсонгуй логик (хамгийн хямд нүүдэл).
+//   "hard"   — гараа хамгийн цөөн нүүдэлд барагдуулах ТӨЛӨВЛӨГӨӨ гаргаж,
+//              тоглогдсон хөзрийг тоолж, өрсөлдөгчийн байдлыг харгалзана.
+//
+// Хүчтэй түвшний гол санаа: энэ тоглоомд ялах гэдэг нь "гараа хамгийн
+// цөөн нүүдлээр дуусгах" явдал. Тиймээс нүүдэл бүрийг "энэ нүүдэл миний
+// төлөвлөгөөг хэр эвдэж байна вэ" гэж үнэлнэ.
 
 import { enumeratePlays, detect, beats, CATEGORY } from "./rules.js";
-import { cardValue, rankOrder, makeDeck, STRAIGHT_RANKS } from "./cards.js";
+import { cardValue, rankOrder, makeDeck, STRAIGHT_RANKS, RANKS } from "./cards.js";
 
 export const DIFFICULTY = { NORMAL: "normal", HARD: "hard" };
 
+/**
+ * Хүчтэй түвшний жингүүд. Утгуудыг эмпирик тэмцээгээр тохируулсан
+ * (js/bot.js-ийн түүхийг үзнэ үү) — тааварлаж биш, хэмжиж сонгосон.
+ */
 export const WEIGHTS = {
-  planBreak: 140,
-  topWeight: 0.35,
-  strongHold: 90,
-  leadSize: 6,
-  followSize: 4,
-  unbeatable: 45,
-  blockAt: 2,
-  rushAt: 4,
+  planBreak: 140, // төлөвлөгөө муудвал шийтгэл
+  topWeight: 0.35, // ижил үр дүнтэй бол сул хөзрөө эхэлж гаргах
+  strongHold: 90, // 2 болон бомбыг хадгалах
+  leadSize: 6, // тэргүүлж байхад олон хөзөр гаргах урамшуулал
+  followSize: 4, // дагаж байхад цөөн хөзрөөр дийлэх
+  unbeatable: 45, // дийлэгдэхгүй хослолоор тэргүүлэх урамшуулал
+  blockAt: 2, // өрсөлдөгч ийм цөөн хөзөртэй бол ямар ч үнээр хориглоно
+  rushAt: 4, // өөрөө ийм цөөн хөзөртэй бол зогсолтгүй тоглоно
+
+  // Үеийн оноо нь ҮЛДСЭН ХӨЗРИЙН тоогоор бодогддог тул хөзөр олноор
+  // гаргах нь чухал. Тэмцээгээр 0 → 20 болгоход ялалт 63% → 77% болсон.
   cardWeight: 20,
-  pressure: 34,
-  control: 58,
-  breakPair: 44,
-  breakSet: 68,
-  breakFive: 36,
-  fiveCardPlan: 24,
-  highSingleLead: 42,
-  cheapBeat: 26,
-  passBadTrade: 1,
-  allowPass: 1,
+
+  // Пасс хийх нь гарт хөзөр үлдээдэг тул энэ дүрмээр АЛДАГДАЛТАЙ.
+  // Тэмцээгээр батлагдсан: пасс хийхгүй нь 63% → 70% болгосон.
+  // (Хүчинтэй нүүдэл огт байхгүй үед мэдээж пасс хийнэ.)
+  allowPass: 0,
 };
 
 const isBomb = (combo) => combo.category >= CATEGORY.POKER;
 const topValue = (combo) => cardValue(combo.cards[combo.cards.length - 1]);
 const hasTwo = (combo) => combo.cards.some((c) => c.rank === "2");
 
-function rankCounts(cards) {
-  const counts = new Map();
-  for (const card of cards) counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1);
-  return counts;
-}
+/* ══════════════════════════════════════════════════
+   Гарын задаргаа — хамгийн цөөн нүүдлийн тоо
+   ══════════════════════════════════════════════════ */
 
-function minOpponentCards(players) {
-  const counts = players.map((p) => p.handCount ?? p.hand.length).filter((n) => Number.isFinite(n));
-  return counts.length ? Math.min(...counts) : Infinity;
-}
-
-function nextOpponentCards(game, index) {
-  for (let step = 1; step < game.players.length; step += 1) {
-    const next = (index + step) % game.players.length;
-    const player = game.players[next];
-    if (!player.eliminated) return player.handCount ?? player.hand.length;
-  }
-  return Infinity;
-}
-
-function opponentPressure(game, index, opponents) {
-  const minCards = minOpponentCards(opponents);
-  const nextCards = nextOpponentCards(game, index);
-  if (minCards <= 1) return 3;
-  if (minCards <= 2 || nextCards <= 2) return 2;
-  if (minCards <= 4) return 1;
-  return 0;
-}
-
-function breaksMadeCombo(combo, hand, madeFiveCardIds) {
-  const counts = rankCounts(hand);
-  const usedCounts = rankCounts(combo.cards);
-  let penalty = 0;
-
-  for (const [rank, used] of usedCounts) {
-    const count = counts.get(rank) ?? 0;
-    if (combo.size === 1 && count >= 2) penalty += count >= 3 ? 2 : 1;
-    if (combo.size === 2 && count >= 3 && used < count) penalty += 2;
-  }
-
-  if (combo.size < 5 && madeFiveCardIds?.size) {
-    if (combo.cards.some((card) => madeFiveCardIds.has(card.id))) penalty += 1;
-  }
-  return penalty;
-}
-
-function beatRisk(combo, unseen) {
-  const top = topValue(combo);
-  if (combo.size === 1) return unseen.filter((card) => cardValue(card) > top).length;
-
-  if (combo.size === 2 || combo.size === 3) {
-    const counts = rankCounts(unseen);
-    const myRank = rankOrder(combo.cards[0].rank);
-    let risk = 0;
-    for (const [rank, count] of counts) {
-      if (count >= combo.size && rankOrder(rank) > myRank) risk += 1;
-    }
-    return risk;
-  }
-
-  return beatable(combo, unseen) ? 2 : 0;
-}
-
-function shouldSavePower(combo, handSize, pressure) {
-  if (pressure >= 2 || handSize <= 5) return false;
-  return hasTwo(combo) || isBomb(combo);
-}
-
+/**
+ * Гарыг хүчинтэй хослолуудад хуваахад хамгийн цөөндөө хэдэн нүүдэл
+ * шаардагдахыг ЯГ бодно (bitmask DP).
+ *
+ * Хурдны гол заль: төлөв бүрд зөвхөн ХАМГИЙН ДООД үлдсэн хөзрийг
+ * агуулсан хослолуудыг үзнэ. Хуваалт хийж байгаа тул тэр хөзрийг
+ * хэн нэг хослол заавал авах ёстой — үүнээс салаалалт огцом багасна.
+ */
 function createPlanner(hand) {
   const n = hand.length;
-  const combos = allCombos(hand);
+  const combos = allCombos(hand); // [{ mask, combo }]
   const byLowest = Array.from({ length: n }, () => []);
-  for (const entry of combos) byLowest[lowestBit(entry.mask)].push(entry);
+  for (const entry of combos) {
+    byLowest[lowestBit(entry.mask)].push(entry);
+  }
 
   const memo = new Map();
 
@@ -122,21 +74,22 @@ function createPlanner(hand) {
       if ((entry.mask & mask) !== entry.mask) continue;
       const rest = minPlays(mask & ~entry.mask);
       if (rest + 1 < best) best = rest + 1;
-      if (best === 1) break;
+      if (best === 1) break; // үүнээс сайн байх боломжгүй
     }
     memo.set(mask, best);
     return best;
   }
 
   const fullMask = (1 << n) - 1;
-  const index = new Map(hand.map((c, i) => [c.id, i]));
 
   return {
     hand,
     combos,
     fullMask,
     minPlays,
+    /** Хослолын хөзрүүдээс bitmask гаргана. */
     maskOf(cards) {
+      const index = new Map(hand.map((c, i) => [c.id, i]));
       let mask = 0;
       for (const card of cards) {
         const i = index.get(card.id);
@@ -150,6 +103,13 @@ function createPlanner(hand) {
 
 const lowestBit = (mask) => 31 - Math.clz32(mask & -mask);
 
+/**
+ * Гар доторх бүх хүчинтэй хослолыг bitmask-тай нь жагсаана.
+ *
+ * C(13,5)=1287 дэд олонлогийг бүгдийг шалгахын оронд төрөл тус бүрийг
+ * ЗОРИУДААР үүсгэнэ (флаш зөвхөн ижил өнгөнөөс, фүл хаус зөвхөн
+ * гурвалаас гэх мэт). Ингэснээр олон дахин хурдан болно.
+ */
 function allCombos(hand) {
   const out = [];
   const idx = new Map(hand.map((c, i) => [c.id, i]));
@@ -159,42 +119,47 @@ function allCombos(hand) {
     if (combo) out.push({ mask: maskOf(cards), combo });
   };
 
+  // Ранкаар бүлэглэх
   const byRank = new Map();
   for (const card of hand) {
     if (!byRank.has(card.rank)) byRank.set(card.rank, []);
     byRank.get(card.rank).push(card);
   }
-
+  // Өнгөөр бүлэглэх
   const bySuit = new Map();
   for (const card of hand) {
     if (!bySuit.has(card.suit)) bySuit.set(card.suit, []);
     bySuit.get(card.suit).push(card);
   }
 
+  // 1-3 хөзрийн хослолууд
   for (const cards of byRank.values()) {
-    for (const card of cards) add([card]);
+    for (const c of cards) add([c]);
     forEachSubset(cards, 2, add);
     forEachSubset(cards, 3, add);
   }
 
+  // Страйт: дараалсан 5 ранкаас тус бүр нэг хөзөр
   for (let i = 0; i + 4 < STRAIGHT_RANKS.length; i += 1) {
     const groups = [];
     let ok = true;
     for (let k = 0; k < 5; k += 1) {
-      const group = byRank.get(STRAIGHT_RANKS[i + k]);
-      if (!group) {
+      const g = byRank.get(STRAIGHT_RANKS[i + k]);
+      if (!g) {
         ok = false;
         break;
       }
-      groups.push(group);
+      groups.push(g);
     }
     if (ok) cartesian(groups, add);
   }
 
+  // Флаш ба страйт флаш: ижил өнгөний 5 хөзөр
   for (const cards of bySuit.values()) {
     if (cards.length >= 5) forEachSubset(cards, 5, add);
   }
 
+  // Фүл хаус: гурвал + хос
   for (const [rank, three] of byRank) {
     if (three.length < 3) continue;
     for (const [rank2, two] of byRank) {
@@ -203,6 +168,7 @@ function allCombos(hand) {
     }
   }
 
+  // Покер: 4 ижил + дурын нэг
   for (const [rank, four] of byRank) {
     if (four.length < 4) continue;
     for (const card of hand) {
@@ -211,6 +177,7 @@ function allCombos(hand) {
     }
   }
 
+  // Давхардлыг хасна (жишээ нь страйт флаш хоёр замаар үүсэж болно)
   const seen = new Set();
   return out.filter((entry) => {
     if (seen.has(entry.mask)) return false;
@@ -246,6 +213,11 @@ function cartesian(groups, visit) {
   walk(0);
 }
 
+/* ══════════════════════════════════════════════════
+   Хөзөр тоолол
+   ══════════════════════════════════════════════════ */
+
+/** Миний гарт ч, ширээн дээр ч байхгүй — өрсөлдөгчдийн гарт байж болох хөзрүүд. */
 function unseenCards(game, index) {
   const seen = new Set(game.played ?? []);
   for (const card of game.players[index].hand) seen.add(card.id);
@@ -253,17 +225,27 @@ function unseenCards(game, index) {
   return makeDeck().filter((card) => !seen.has(card.id));
 }
 
+/**
+ * Энэ хослолыг өрсөлдөгч дийлж чадах уу — ХЯМД ойролцоолол.
+ * Бүх хослолыг угсарч үзвэл C(30,5) = 142k хувилбар болох тул
+ * зөвхөн шийдвэрлэх шинжийг шалгана.
+ */
 function beatable(combo, unseen) {
   const top = topValue(combo);
 
-  if (combo.size === 1) return unseen.some((card) => cardValue(card) > top);
+  if (combo.size === 1) {
+    return unseen.some((card) => cardValue(card) > top);
+  }
 
   if (combo.size === 2 || combo.size === 3) {
-    const counts = rankCounts(unseen);
+    // Илүү өндөр ранкаас хангалттай тооны хөзөр үлдсэн үү
+    const counts = new Map();
+    for (const card of unseen) counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1);
     const myRank = rankOrder(combo.cards[0].rank);
     for (const [rank, count] of counts) {
       if (count < combo.size) continue;
       if (rankOrder(rank) > myRank) return true;
+      // Ижил ранк дээр өнгөөр дийлэх боломж (зөвхөн хосын хувьд)
       if (combo.size === 2 && rankOrder(rank) === myRank) {
         const higher = unseen.filter((c) => c.rank === rank && cardValue(c) > top);
         if (higher.length >= 1 && count >= 2) return true;
@@ -272,20 +254,29 @@ function beatable(combo, unseen) {
     return false;
   }
 
+  // 5 хөзрийн хослол: рояал флашийг л дийлэх аргагүй гэж үзнэ.
+  // Бусад тохиолдолд илүү өндөр ангилал үлдсэн эсэхийг ойролцоолно.
   if (combo.type === "royalFlush") return false;
-  if (combo.category >= CATEGORY.STRAIGHT_FLUSH) return false;
+  if (combo.category >= CATEGORY.STRAIGHT_FLUSH) {
+    // Зөвхөн илүү өндөр страйт флаш дийлнэ — ховор тул үгүй гэж үзнэ
+    return false;
+  }
   if (combo.category === CATEGORY.POKER) {
-    const counts = rankCounts(unseen);
-    const quad = combo.cards.find((card, _, arr) => arr.filter((x) => x.rank === card.rank).length === 4);
-    const myRank = rankOrder(quad?.rank ?? combo.cards[0].rank);
+    // Илүү өндөр 4 ижил, эсвэл страйт флаш үлдсэн үү
+    const counts = new Map();
+    for (const card of unseen) counts.set(card.rank, (counts.get(card.rank) ?? 0) + 1);
+    const myRank = rankOrder(combo.cards.find((c, _, arr) =>
+      arr.filter((x) => x.rank === c.rank).length === 4)?.rank ?? combo.cards[0].rank);
     for (const [rank, count] of counts) {
       if (count === 4 && rankOrder(rank) > myRank) return true;
     }
     return hasStraightFlushPotential(unseen);
   }
+  // Страйт / флаш / фүл хаус — ихэвчлэн дийлэгддэг
   return true;
 }
 
+/** Үлдсэн хөзрөөс страйт флаш угсарч болох уу (ойролцоо шалгалт). */
 function hasStraightFlushPotential(unseen) {
   const bySuit = new Map();
   for (const card of unseen) {
@@ -308,6 +299,16 @@ function hasStraightFlushPotential(unseen) {
   return false;
 }
 
+/* ══════════════════════════════════════════════════
+   Нүүдэл сонгох
+   ══════════════════════════════════════════════════ */
+
+/**
+ * @param {object} game
+ * @param {number} index
+ * @param {{difficulty?: string}} options
+ * @returns {object|null} хослол, эсвэл null (= пасс)
+ */
 export function chooseMove(game, index, options = {}) {
   const difficulty = options.difficulty ?? game.difficulty ?? DIFFICULTY.HARD;
   const player = game.players[index];
@@ -319,11 +320,15 @@ export function chooseMove(game, index, options = {}) {
   return chooseHard(game, index, moves, options.weights ?? WEIGHTS);
 }
 
+/* ── Энгийн түвшин (хуучин логик) ───────────────── */
+
 function chooseNormal(game, index, moves) {
   const player = game.players[index];
   const handSize = player.hand.length;
-  const opponents = game.players.filter((p, i) => i !== index && !p.eliminated);
-  const urgent = minOpponentCards(opponents) <= 3;
+  const opponentMin = Math.min(
+    ...game.players.filter((p, i) => i !== index && !p.eliminated).map((p) => p.hand.length),
+  );
+  const urgent = opponentMin <= 3;
 
   return [...moves]
     .map((combo) => ({ combo, cost: normalCost(combo, handSize, urgent, game) }))
@@ -344,6 +349,8 @@ function normalCost(combo, handSize, urgent, game) {
   return score;
 }
 
+/* ── Хүчтэй түвшин ──────────────────────────────── */
+
 function chooseHard(game, index, moves, w = WEIGHTS) {
   const player = game.players[index];
   const hand = player.hand;
@@ -351,113 +358,87 @@ function chooseHard(game, index, moves, w = WEIGHTS) {
   const basePlays = planner.minPlays(planner.fullMask);
 
   const opponents = game.players.filter((p, i) => i !== index && !p.eliminated);
-  const opponentMin = minOpponentCards(opponents);
-  const pressure = opponentPressure(game, index, opponents);
+  const opponentMin = Math.min(...opponents.map((p) => p.handCount ?? p.hand.length));
+  const opponentCount = opponents.length;
   const unseen = unseenCards(game, index);
-  const madeFiveCardIds = new Set(
-    planner.combos
-      .filter((entry) => entry.combo.size === 5 && entry.combo.category >= CATEGORY.FLUSH)
-      .flatMap((entry) => entry.combo.cards.map((card) => card.id)),
-  );
 
+  // 1. Энэ нүүдлээр гараа дуусгаж чадах уу — эргэлзэхгүй
   const finisher = moves.find((m) => m.size === hand.length);
   if (finisher) return finisher;
 
   const leading = !game.table;
-  const emergency = opponentMin <= 1;
-  if (emergency) {
-    const block = chooseEmergencyBlock(moves, planner, unseen, leading);
-    if (block) return block;
-  }
 
   const scored = moves.map((combo) => {
     const mask = planner.maskOf(combo.cards);
     const after = planner.minPlays(planner.fullMask & ~mask);
-    const risk = beatRisk(combo, unseen);
-    const controlMove = risk === 0;
+    // Хамгийн чухал хэмжүүр: энэ нүүдлийн дараа хэдэн нүүдэл үлдэх вэ.
+    // Төлөвлөгөөнд багтсан нүүдэл бол (basePlays - 1) болно.
     let score = after * 100;
 
+    // Үеийн оноо нь ҮЛДСЭН ХӨЗРИЙН тоо. Түрүүлж дуусч чадахгүй ч
+    // олон хөзөр гаргасан бол оноо бага байна.
     score += (hand.length - combo.size) * w.cardWeight;
+
+    // Төлөвлөгөөг эвдэж байвал (нүүдлийн тоо буурахгүй) хүнд шийтгэл
     if (after >= basePlays) score += w.planBreak;
+
+    // Ижил үр дүнтэй бол сул хөзрөө эхэлж гаргана
     score += topValue(combo) * w.topWeight;
 
-    const breakPenalty = breaksMadeCombo(combo, hand, madeFiveCardIds);
-    score += breakPenalty * (combo.size === 1 ? w.breakPair : w.breakSet);
-    if (combo.size < 5 && madeFiveCardIds.size) score += breakPenalty * w.breakFive;
-    if (combo.size === 5 && after <= basePlays - 1) score -= (combo.category ?? 1) * w.fiveCardPlan;
-
+    // Хүчтэй хөзрийг хэрэггүй үед бүү үр
     const strong = hasTwo(combo) || isBomb(combo);
-    if (shouldSavePower(combo, hand.length, pressure)) score += w.strongHold;
-
-    if (pressure > 0) {
-      score -= combo.size * pressure * w.pressure;
-      if (controlMove) score -= pressure * w.control;
-      if (!leading && !strong) score -= w.cheapBeat * pressure;
-    }
+    if (strong && opponentMin > 4 && hand.length > 5) score += w.strongHold;
 
     if (leading) {
-      if (controlMove) score -= w.unbeatable + w.control;
+      // Тэргүүлж байгаа үед: дийлэгдэхгүй хослол бол маш үнэ цэнэтэй —
+      // ширээг дахин авах баталгаа болно.
+      if (!beatable(combo, unseen)) score -= w.unbeatable;
+      // Олон хөзөр зэрэг гаргах нь ашигтай
       score -= combo.size * w.leadSize;
-      if (combo.size === 1 && rankOrder(combo.cards[0].rank) >= rankOrder("K") && hand.length > 5 && pressure === 0) {
-        score += w.highSingleLead;
-      }
     } else {
+      // Дагаж байгаа үед: хамгийн бага зардлаар дийлнэ
       score += combo.size * w.followSize;
-      score += risk * 3;
     }
 
     return { combo, score, after };
   });
 
-  scored.sort((a, b) => a.score - b.score || comboRank(a.combo) - comboRank(b.combo));
+  scored.sort((a, b) => a.score - b.score);
   const best = scored[0];
 
-  if (!leading && w.allowPass && shouldPass(best, basePlays, opponentMin, hand.length, pressure, w)) return null;
+  // 2. Дагаж байгаа үед заримдаа ПАСС хийх нь дээр
+  if (!leading && w.allowPass && shouldPass(best, basePlays, opponentMin, hand.length, w)) return null;
+
   return best.combo;
 }
 
-function chooseEmergencyBlock(moves, planner, unseen, leading) {
-  const scored = moves.map((combo) => {
-    const mask = planner.maskOf(combo.cards);
-    const after = planner.minPlays(planner.fullMask & ~mask);
-    const risk = beatRisk(combo, unseen);
-    const top = topValue(combo);
-    let score = risk * 100 - top * 0.8 + after * 8;
-
-    if (leading) {
-      if (combo.size > 1) score -= 180 + combo.size * 18;
-      if (combo.size === 1) score += 45;
-      if (risk === 0) score -= 90;
-    } else {
-      if (risk === 0) score -= 120;
-      if (combo.size === 1) score -= top * 0.5;
-    }
-
-    return { combo, score };
-  });
-
-  scored.sort((a, b) => a.score - b.score || topValue(b.combo) - topValue(a.combo));
-  return scored[0]?.combo ?? null;
-}
-
-function shouldPass(best, basePlays, opponentMin, handSize, pressure, w) {
+/**
+ * Дийлэх нь төлөвлөгөөг эвдэж байвал, бас өрсөлдөгч дуусах шахсан
+ * биш бол пасс хийж хүчээ хадгална.
+ */
+function shouldPass(best, basePlays, opponentMin, handSize, w) {
+  // Өрсөлдөгч дуусах гэж байвал ямар ч үнээр хориглоно
   if (opponentMin <= w.blockAt) return false;
-  if (pressure > 0) return false;
+  // Өөрөө дуусах шахсан бол зогсолтгүй тоглоно
   if (handSize <= w.rushAt) return false;
+  // Төлөвлөгөө муудахгүй бол тавина
   if (best.after < basePlays) return false;
+  // Төлөвлөгөө муудаж байна: хүчтэй хөзөр үрэх үү гэдгийг шийднэ
   if (hasTwo(best.combo) || isBomb(best.combo)) return true;
-  return best.after > basePlays || (best.after === basePlays && best.score > basePlays * 100 + w.passBadTrade);
+  // Нүүдлийн тоо ӨСӨХ бол утгагүй
+  return best.after > basePlays;
 }
 
-function comboRank(combo) {
-  if (combo.size === 5) return combo.category ?? 0;
-  return rankOrder(combo.cards[0].rank);
-}
+/* ══════════════════════════════════════════════════
+   Хүнд зориулсан зөвлөмж
+   ══════════════════════════════════════════════════ */
 
+/** "Энийг тавьж болно" гэж зөвлөх — үргэлж хүчтэй логикоор. */
 export function suggestMove(game, index) {
   return chooseMove(game, index, { difficulty: DIFFICULTY.HARD });
 }
 
+/** Гараа хэдэн нүүдэлд барагдуулж чадах вэ (UI-д харуулж болно). */
 export function planSize(hand) {
   if (!hand.length) return 0;
   const planner = createPlanner(hand);

@@ -3,16 +3,19 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
-      return request.auth != null;
-    }
+    function signedIn() { return request.auth != null; }
+    function me() { return request.auth.uid; }
 
-    function me() {
-      return request.auth.uid;
-    }
-
-    function shortText(text) {
-      return text is string && text.size() > 0 && text.size() <= 180;
+    // Chat мессежийн бүрэн бүтэн байдал: зохиогч нь өөрөө, урт хязгаартай,
+    // цаг нь бодит (ирээдүй рүү хуурамчаар түлхэж болохгүй).
+    function validMessage() {
+      return request.resource.data.uid == me()
+             && request.resource.data.text is string
+             && request.resource.data.text.size() > 0
+             && request.resource.data.text.size() <= 180
+             && request.resource.data.createdMs is number
+             && request.resource.data.createdMs <= request.time.toMillis() + 5000
+             && request.resource.data.createdMs >= request.time.toMillis() - 60000;
     }
 
     // ── Хэрэглэгчийн профайл ба ranking ──────────────
@@ -22,10 +25,9 @@ service cloud.firestore {
       allow delete: if false;
     }
 
-    // ── Presence: хэн онлайн байгаа ──────────────────
+    // ── Presence ─────────────────────────────────────
     match /presence/{uid} {
       allow read: if signedIn();
-      // Зөвхөн өөрийн дохиогоо бичнэ — өөр хүнийг "онлайн" болгож болохгүй
       allow delete: if signedIn() && me() == uid;
       allow create, update: if signedIn() && me() == uid
                             && request.resource.data.uid == uid;
@@ -34,9 +36,7 @@ service cloud.firestore {
     // ── Нийтийн chat ─────────────────────────────────
     match /publicChat/{messageId} {
       allow read: if signedIn();
-      allow create: if signedIn()
-                    && request.resource.data.uid == me()
-                    && shortText(request.resource.data.text);
+      allow create: if signedIn() && validMessage();
       allow update, delete: if false;
     }
 
@@ -44,17 +44,32 @@ service cloud.firestore {
     match /rooms/{code} {
 
       function existing() { return resource.data; }
-      function incoming() { return request.resource.data; }
-      function isMember() { return me() in existing().members; }
-      function isHost()   { return existing().host == me(); }
+      function incoming()  { return request.resource.data; }
+      function isMember()  { return me() in existing().members; }
+      function isHost()    { return existing().host == me(); }
 
-      // Host солигдож болох цорын ганц тохиолдол: одоогийн host
-      // суудлаа орхисон, эсвэл удаан дохиогүй байх.
       function hostUnchanged() { return incoming().host == existing().host; }
       function hostSeatGone()  { return !(existing().host in existing().members); }
       function hostTimedOut() {
         return existing().hostSeenAt is number
                && request.time.toMillis() - existing().hostSeenAt > 30000;
+      }
+
+      // Зөвхөн host өөрчилж болох талбарууд. Гишүүн эдгээрийг хөндвөл
+      // татгалзана — өмнө нь дурын гишүүн тоглоомыг эхлүүлэх, bot
+      // тохиргоог солих боломжтой байсан.
+      function hostOnlyFieldsUntouched() {
+        return !request.resource.data.diff(resource.data)
+                  .affectedKeys()
+                  .hasAny(['status', 'allowBots', 'botLevel', 'visibility', 'gameId', 'startedAt']);
+      }
+
+      // state/stateVersion нь нүүдлээр өөрчлөгддөг — хамт л шинэчлэгдэнэ,
+      // бөгөөд хувилбарын дугаар зөвхөн УРАГШ явна (дахин тоглуулахаас хамгаална).
+      function versionMovesForward() {
+        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['state'])
+               || (incoming().stateVersion is number
+                   && incoming().stateVersion > (existing().stateVersion is number ? existing().stateVersion : 0));
       }
 
       allow read: if signedIn();
@@ -64,9 +79,6 @@ service cloud.firestore {
                     && incoming().status == 'waiting'
                     && me() in incoming().members;
 
-      // Гишүүн болон шинээр нэгдэж буй хүн шинэчилж чадна, ГЭХДЭЭ:
-      //   • host-ыг дур мэдэн өөрчилж болохгүй,
-      //   • тоглоом эхлүүлэх (status өөрчлөх) эрх зөвхөн host-д.
       allow update: if signedIn()
                     && (isMember() || me() in incoming().members)
                     && (
@@ -75,7 +87,8 @@ service cloud.firestore {
                          || ((hostSeatGone() || hostTimedOut()) && incoming().host == me())
                          || incoming().host == null
                        )
-                    && (incoming().status == existing().status || isHost());
+                    && (isHost() || hostOnlyFieldsUntouched())
+                    && versionMovesForward();
 
       allow delete: if signedIn() && isHost();
 
@@ -88,10 +101,7 @@ service cloud.firestore {
                       room().visibility == 'public' ||
                       me() in room().members
                     );
-        allow create: if signedIn()
-                      && me() in room().members
-                      && request.resource.data.uid == me()
-                      && shortText(request.resource.data.text);
+        allow create: if signedIn() && me() in room().members && validMessage();
         allow update, delete: if false;
       }
 
@@ -104,8 +114,14 @@ service cloud.firestore {
                       resource.data.uid == me() ||
                       room().host == me()
                     );
-        // Өөрийн гараа, эсвэл host нь bot-ын гарыг бичнэ
-        allow write: if signedIn() && me() in room().members;
+        // Өөрийн гараа бичнэ. Host нь bot-ын (uid: bot-*) гарыг бичнэ.
+        // Өмнө нь дурын гишүүн бусдын гарыг дарж бичих боломжтой байсан.
+        allow write: if signedIn()
+                     && me() in room().members
+                     && (
+                          request.resource.data.uid == me()
+                          || (room().host == me() && request.resource.data.uid != null)
+                        );
       }
     }
   }

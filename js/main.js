@@ -659,16 +659,26 @@ async function runBotChain() {
       const result = move ? play(full, turn, move.cards) : pass(full, turn);
       if (!result.ok && !pass(full, turn).ok) return; // гацахаас сэргийлнэ
 
-      await fb.writeHand(code, turn, { uid: seat.uid, cards: full.players[turn].hand });
       next = serializeGame(full);
-      await fb.updateRoom(code, { state: next, hostSeenAt: Date.now() });
+      // Bot-ын нүүдэл ч ГҮЙЛГЭЭГЭЭР бичигдэнэ — хүний нүүдлийг дарж бичихгүй
+      const committed = await fb.commitMove(code, {
+        seatIndex: turn,
+        expectedVersion: app.room?.stateVersion,
+        state: next,
+        hand: full.players[turn].hand,
+        uid: seat.uid,
+      });
+      if (!committed.ok) {
+        // Хүн бидний өмнө нүүсэн байна — snapshot-оо хүлээгээд зогсоно
+        return;
+      }
+      fb.touchHost(code);
+      app.room = { ...app.room, state: next, stateVersion: committed.version };
     } catch (error) {
       console.error(error);
       return;
     }
 
-    // Snapshot хүлээхгүйгээр өөрийн хуулбарыг шинэчилж гинжийг үргэлжлүүлнэ
-    app.room = { ...app.room, state: next };
     if (next.phase !== PHASE.PLAYING) return;
   }
 }
@@ -713,11 +723,22 @@ async function commitMove() {
     return;
   }
   try {
-    await fb.writeHand(app.roomCode, app.myIndex, {
+    const result = await fb.commitMove(app.roomCode, {
+      seatIndex: app.myIndex,
+      expectedVersion: app.room?.stateVersion,
+      state: serializeGame(app.game),
+      hand: app.game.players[app.myIndex].hand,
       uid: app.user.uid,
-      cards: app.game.players[app.myIndex].hand,
     });
-    await fb.updateRoom(app.roomCode, { state: serializeGame(app.game) });
+    if (!result.ok) {
+      // Өөр хэн нэг нь бидний өмнө бичсэн — сүүлийн байдал руу буцаана
+      if (result.reason === "stale" || result.reason === "not-your-turn") {
+        toast("Ээлж өөрчлөгдсөн байна — шинэчиллээ.");
+        if (app.room) rebuild(app.room);
+      } else {
+        toast("Нүүдлийг хадгалж чадсангүй.");
+      }
+    }
   } catch (error) {
     toast("Нүүдлийг хадгалж чадсангүй.");
     console.error(error);
