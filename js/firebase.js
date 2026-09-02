@@ -238,6 +238,24 @@ export async function createRoom(user, options = {}) {
   throw new Error("Өрөөний код үүсгэж чадсангүй. Дахин оролдоно уу.");
 }
 
+export async function findActiveRoomForUser(uid) {
+  if (!db || !uid) return null;
+  const q = mod.query(mod.collection(db, "rooms"), mod.limit(80));
+  const snap = await mod.getDocs(q);
+  const rooms = snap.docs
+    .map((d) => {
+      const data = d.data();
+      return { id: d.id, ...data, seats: deserializeSeats(data.seats) };
+    })
+    .filter((room) =>
+      (room.status === "waiting" || room.status === "playing") &&
+      (room.members ?? []).includes(uid) &&
+      seatIndexOf(room.seats, uid) !== -1,
+    )
+    .sort((a, b) => (b.updatedAt?.toMillis?.() ?? 0) - (a.updatedAt?.toMillis?.() ?? 0));
+  return rooms[0] ?? null;
+}
+
 export async function joinRoom(code, user) {
   const ref = roomRef(code);
   await mod.runTransaction(db, async (tx) => {
