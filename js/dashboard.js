@@ -8,6 +8,8 @@
 
 import * as fb from "./firebase.js";
 import { humanSeats, seatCount, SEAT_COUNT, toMillis } from "./seats.js";
+import { openModal } from "./ui.js";
+import { escapeHtml } from "./text.js";
 
 const HEARTBEAT_MS = 20_000;
 const ROOM_STALE_MS = 5 * 60_000; // 5 минут хөдөлгөөнгүй өрөөг амьд гэж тооцохгүй
@@ -18,6 +20,7 @@ let unsubs = [];
 let beat = null;
 let presenceRows = [];
 let roomRows = [];
+let onlineWired = false;
 let context = { uid: null, name: null, roomCode: null, inGame: false };
 
 export function startDashboard(user) {
@@ -28,6 +31,7 @@ export function startDashboard(user) {
   }
   context = { uid: user.uid, name: user.displayName ?? null, roomCode: null, inGame: false };
 
+  wireOnlineList();
   fb.heartbeat(context.uid, context);
   beat = setInterval(() => fb.heartbeat(context.uid, context), HEARTBEAT_MS);
 
@@ -121,6 +125,70 @@ function render() {
   setText("statPublicSub", s.waiting ? `${s.openSeats} суудал сул` : "сул суудал алга");
   setText("statPrivateSub", s.privateRooms ? "кодоор орно" : "—");
   setText("statRunningSub", s.running ? `${s.waiting} өрөө хүлээж байна` : "—");
+}
+
+/* ── Онлайн тоглогчдын жагсаалт ─────────────────────
+ * "Онлайн тоглогч" тоог дарахад хэн онлайн байгааг харуулна.
+ */
+function wireOnlineList() {
+  if (onlineWired) return;
+  const card = $("statOnline")?.closest(".stat");
+  if (!card) return;
+  onlineWired = true;
+  card.setAttribute("role", "button");
+  card.setAttribute("tabindex", "0");
+  card.setAttribute("aria-haspopup", "dialog");
+  card.title = "Онлайн тоглогчдыг харах";
+  card.style.cursor = "pointer";
+  card.addEventListener("click", showOnlinePlayers);
+  card.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      showOnlinePlayers();
+    }
+  });
+}
+
+function onlineStatus(row) {
+  if (row.inGame) return { label: "тоглож байна", kind: "play" };
+  if (row.roomCode) return { label: "өрөөнд", kind: "room" };
+  return { label: "лобби", kind: "wait" };
+}
+
+function showOnlinePlayers() {
+  const rank = { play: 0, room: 1, wait: 2 };
+  const rows = [...presenceRows].sort((a, b) => {
+    const ra = rank[onlineStatus(a).kind];
+    const rb = rank[onlineStatus(b).kind];
+    if (ra !== rb) return ra - rb;
+    return String(a.name ?? "").localeCompare(String(b.name ?? ""));
+  });
+
+  const list = document.createElement("ul");
+  list.className = "online-list";
+  if (!rows.length) {
+    const li = document.createElement("li");
+    li.className = "social-empty";
+    li.textContent = "Одоогоор онлайн хүн алга.";
+    list.appendChild(li);
+  } else {
+    rows.forEach((row) => {
+      const status = onlineStatus(row);
+      const isSelf = row.uid && row.uid === context.uid;
+      const name = escapeHtml(row.name ?? "Зочин") + (isSelf ? " (та)" : "");
+      const li = document.createElement("li");
+      li.className = "online-row";
+      li.innerHTML = `<span class="online-name">${name}</span>` +
+        `<span class="seat-badge" data-kind="${status.kind}">${status.label}</span>`;
+      list.appendChild(li);
+    });
+  }
+
+  openModal({
+    title: `Онлайн тоглогч · ${rows.length}`,
+    body: list,
+    actions: [{ label: "Хаах", primary: true }],
+  });
 }
 
 function renderOffline() {

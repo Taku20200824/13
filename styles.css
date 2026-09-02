@@ -1014,6 +1014,16 @@ input {
   color: var(--ink-faint);
 }
 
+.seat-badge[data-kind="play"] {
+  background: rgba(53, 210, 154, 0.18);
+  color: var(--accent);
+}
+
+.seat-badge[data-kind="room"] {
+  background: rgba(231, 194, 106, 0.16);
+  color: #e7c26a;
+}
+
 .mini-hand {
   display: flex;
   gap: 2px;
@@ -1936,6 +1946,40 @@ input {
   color: var(--ink-faint);
   font-size: 13px;
   text-align: center;
+}
+
+.online-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 52vh;
+  overflow-y: auto;
+}
+
+.online-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.online-name {
+  flex: 1;
+  min-width: 0;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.online-row .seat-badge {
+  margin-left: auto;
 }
 
 @media (max-width: 700px) {
