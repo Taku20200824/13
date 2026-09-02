@@ -73,6 +73,15 @@ export async function signOutUser() {
 
 const userRef = (uid) => mod.doc(db, "users", uid);
 
+export function ratingScore(stats = {}) {
+  return (
+    (stats.wins ?? 0) * 100 +
+    (stats.roundWins ?? 0) * 20 -
+    (stats.points ?? 0) * 3 -
+    (stats.losses ?? 0) * 25
+  );
+}
+
 export async function ensureProfile(user, name) {
   const ref = userRef(user.uid);
   const snap = await mod.getDoc(ref);
@@ -88,6 +97,7 @@ export async function ensureProfile(user, name) {
       rounds: 0,
       roundWins: 0,
       points: 0,
+      rating: 0,
       recordedGames: [],
       updatedAt: mod.serverTimestamp(),
     });
@@ -102,6 +112,9 @@ export async function ensureProfile(user, name) {
     // Хуучин профайлд дутуу талбаруудыг нөхнө
     if (typeof data.losses !== "number") patch.losses = Math.max(0, (data.games ?? 0) - (data.wins ?? 0));
     if (!Array.isArray(data.recordedGames)) patch.recordedGames = [];
+    const nextStats = { ...data, ...patch };
+    const rating = ratingScore(nextStats);
+    if (typeof data.rating !== "number" || data.rating !== rating) patch.rating = rating;
     await mod.updateDoc(ref, patch);
   }
 }
@@ -136,16 +149,20 @@ export async function recordResult(uid, stats) {
     if (data?.recordedGames?.includes(stats.gameId)) return; // давхардлаас хамгаална
 
     const base = data ?? { games: 0, wins: 0, losses: 0, rounds: 0, roundWins: 0, points: 0 };
-    // Сүүлийн 50 тоглоомын түлхүүр л хангалттай — баримт хэт томроохгүй
-    const history = [...(data?.recordedGames ?? []), stats.gameId].slice(-50);
-
-    const patch = {
+    const nextStats = {
       games: (base.games ?? 0) + 1,
       wins: (base.wins ?? 0) + (stats.won ? 1 : 0),
       losses: (base.losses ?? 0) + (stats.won ? 0 : 1),
       rounds: (base.rounds ?? 0) + (stats.rounds ?? 0),
       roundWins: (base.roundWins ?? 0) + (stats.roundWins ?? 0),
       points: (base.points ?? 0) + (stats.points ?? 0),
+    };
+    // Сүүлийн 50 тоглоомын түлхүүр л хангалттай — баримт хэт томроохгүй
+    const history = [...(data?.recordedGames ?? []), stats.gameId].slice(-50);
+
+    const patch = {
+      ...nextStats,
+      rating: ratingScore(nextStats),
       recordedGames: history,
       updatedAt: mod.serverTimestamp(),
     };
@@ -158,23 +175,28 @@ export async function recordResult(uid, stats) {
 }
 
 /**
- * Ranking. Ганц талбараар эрэмбэлж байгаа тул composite index шаардахгүй —
- * өмнө нь `wins desc, games desc` гэсэн хос эрэмбэ индекс шаардаж,
- * индекс байхгүй үед бүхэл жагсаалт унадаг байсан.
+ * Ranking нь rating оноогоор явна:
+ * wins * 100 + roundWins * 20 - points * 3 - losses * 25.
+ * Хуучин баримтад rating байхгүй бол унших үед түр бодож эрэмбэлнэ.
  */
 export async function fetchLeaderboard(max = 20) {
   if (!db) return [];
-  const q = mod.query(mod.collection(db, "users"), mod.orderBy("wins", "desc"), mod.limit(max));
+  const q = mod.query(mod.collection(db, "users"), mod.limit(Math.max(max * 5, 50)));
   const snap = await mod.getDocs(q);
   return snap.docs
-    .map((d) => ({ uid: d.id, ...d.data() }))
+    .map((d) => {
+      const row = { uid: d.id, ...d.data() };
+      return { ...row, rating: typeof row.rating === "number" ? row.rating : ratingScore(row) };
+    })
     .filter((row) => row.anonymous !== true && (row.games ?? 0) > 0)
     .sort(
       (a, b) =>
+        (b.rating ?? 0) - (a.rating ?? 0) ||
         (b.wins ?? 0) - (a.wins ?? 0) ||
-        (b.games ?? 0) - (a.games ?? 0) ||
-        (a.points ?? 0) - (b.points ?? 0), // оноо бага нь дээр
-    );
+        (a.points ?? 0) - (b.points ?? 0) ||
+        (b.games ?? 0) - (a.games ?? 0),
+    )
+    .slice(0, max);
 }
 
 /* ── Өрөө ────────────────────────────────────────── */
