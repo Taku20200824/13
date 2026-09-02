@@ -130,9 +130,12 @@ service cloud.firestore {
                       room().host == me()
                     );
         // Өөрийн гараа бичнэ. Host нь bot-ын (uid: bot-*) гарыг бичнэ.
-        // Өмнө нь дурын гишүүн бусдын гарыг дарж бичих боломжтой байсан.
+        // Хөзрийн массивын хэлбэр, хэмжээ заавал зөв байна.
         allow write: if signedIn()
                      && me() in room().members
+                     && request.resource.data.uid is string
+                     && request.resource.data.cards is list
+                     && request.resource.data.cards.size() <= 13
                      && (
                           request.resource.data.uid == me()
                           || (room().host == me() && request.resource.data.uid != null)
