@@ -93,10 +93,18 @@ Firebase Console → ⚙ **Project settings** → **Your apps** → Web app до
 firebase deploy --only firestore:rules
 ```
 
-### 4. Index
+### 4. Ranking оноо
 
-Ranking нь `wins desc, games desc` гэсэн composite index шаардана. Эхний удаа
-ажиллуулахад Console-д линк гарч ирнэ — түүн дээр даран үүсгэнэ.
+Ranking нь зөвхөн Google account-аар тоглосон хэрэглэгчдийг тооцно. Зочин тоглолт
+ranking-д нэмэгдэхгүй.
+
+Rating оноо:
+
+```text
+wins * 100 + roundWins * 20 - points * 3 - losses * 25
+```
+
+Composite index шаардахгүй — leaderboard уншихдаа rating-г бодож эрэмбэлнэ.
 
 ---
 
