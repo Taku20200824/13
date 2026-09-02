@@ -44,6 +44,7 @@ import {
 } from "./ui.js";
 
 const BOT_NAMES = ["Болд", "Саруул", "Номин", "Дорж", "Оюун", "Тэмүүлэн"];
+const HOST_WARN_MS = 22_000;
 
 const app = {
   user: null,
@@ -97,11 +98,21 @@ async function boot() {
     }
     app.user = user;
     // Сессийг сэргээж орсон тохиолдолд профайл байхгүй байж болзошгүй
-    fb.ensureProfile(user, user.displayName).catch(console.error);
+    await fb.ensureProfile(user, user.displayName).catch(console.error);
     renderAccount();
     startDashboard(user);
-    showScreen("lobby");
     loadLeaderboard();
+
+    const activeRoom = await fb.findActiveRoomForUser(user.uid).catch((error) => {
+      console.error(error);
+      return null;
+    });
+    if (activeRoom && !app.roomCode) {
+      toast(`Өрөө ${activeRoom.code ?? activeRoom.id} рүү буцааж холболоо.`);
+      enterRoom(activeRoom.code ?? activeRoom.id);
+      return;
+    }
+    showScreen("lobby");
   });
 }
 
@@ -221,13 +232,17 @@ async function loadLeaderboard() {
     }
     list.innerHTML = "";
     rows.forEach((row, i) => {
+      const winRate = row.games ? Math.round(((row.wins ?? 0) / row.games) * 100) : 0;
+      const avgPenalty = row.games ? ((row.points ?? 0) / row.games).toFixed(1) : "0.0";
       const li = document.createElement("li");
       li.className = "lb-row";
+      if (i < 3) li.dataset.rank = String(i + 1);
       if (app.user && row.uid === app.user.uid) li.setAttribute("data-me", "");
       li.innerHTML = `
-        <span class="lb-pos">${i + 1}</span>
+        <span class="lb-pos">${i < 3 ? ["1", "2", "3"][i] : i + 1}</span>
         <span class="lb-name">${escapeHtml(row.displayName ?? "Зочин")}</span>
-        <span class="lb-score">${row.rating ?? 0}<small> оноо · ${row.wins ?? 0}/${row.games ?? 0}</small></span>`;
+        <span class="lb-score">${row.rating ?? 0}<small> оноо · ${row.wins ?? 0}/${row.games ?? 0}</small></span>
+        <span class="lb-detail">win ${winRate}% · avg ${avgPenalty}</span>`;
       list.appendChild(li);
     });
   } catch (error) {
@@ -279,6 +294,8 @@ function scheduleBot() {
 /* ══════════ Өрөө ══════════ */
 
 const isHost = () => app.room && app.user && app.room.host === app.user.uid;
+const hostLooksStale = () =>
+  app.room?.hostSeenAt && Date.now() - app.room.hostSeenAt > HOST_WARN_MS;
 
 const botLevel = () =>
   document.querySelector('input[name="botLevel"]:checked')?.value === "normal"
@@ -383,8 +400,12 @@ function startHostWatchdog() {
     if (isHost()) {
       fb.touchHost(app.roomCode);
     } else {
+      if (hostLooksStale()) setBanner("Host холболт шалгаж байна… шилжихэд бэлэн.", "error");
       const claimed = await fb.claimHostIfStale(app.roomCode, app.user.uid);
-      if (claimed) toast("Host шилжлээ — та одоо өрөөг удирдана.");
+      if (claimed) {
+        toast("Host шилжлээ — та одоо өрөөг удирдана.");
+        setBanner("Host таны төхөөрөмж дээр сэргэлээ.", "good");
+      }
     }
   }, 12_000);
   app.unsub.push(stopHostWatchdog);
@@ -458,22 +479,26 @@ function renderRoom(room) {
   const humans = humanSeats(room.seats).length;
   const filled = seatCount(room.seats);
   const host = isHost();
+  const stale = hostLooksStale();
 
   $("allowBots").checked = Boolean(room.allowBots);
   $("allowBots").disabled = !host;
 
   const ready = room.allowBots ? humans >= 1 : filled === SEAT_COUNT;
   $("btnStartRoom").disabled = !host || !ready;
-  $("btnStartRoom").textContent = host ? "Тоглоом эхлүүлэх" : "Хостыг хүлээж байна…";
+  $("btnStartRoom").textContent = host ? "Тоглоом эхлүүлэх" : stale ? "Host шилжиж байна…" : "Хостыг хүлээж байна…";
   setHint(
     "roomHint",
-    ready
-      ? host
-        ? ""
-        : "Host эхлүүлэхийг хүлээж байна."
-      : room.allowBots
-        ? "Bot-оор нөхөөд ганцаараа эхэлж болно."
-        : `${SEAT_COUNT} хүн бүрдэх хүртэл хүлээнэ (одоо ${filled}).`,
+    stale && !host
+      ? "Host удаан хариулахгүй байна. Систем автоматаар өөр тоглогч руу шилжүүлнэ."
+      : ready
+        ? host
+          ? ""
+          : "Host эхлүүлэхийг хүлээж байна."
+        : room.allowBots
+          ? "Bot-оор нөхөөд ганцаараа эхэлж болно."
+          : `${SEAT_COUNT} хүн бүрдэх хүртэл хүлээнэ (одоо ${filled}).`,
+    stale && !host,
   );
 }
 
@@ -776,7 +801,9 @@ function draw() {
 
   if (game.phase === PHASE.PLAYING) {
     const turnName = game.players[game.turn].name;
-    if (game.turn === app.myIndex) {
+    if (hostLooksStale() && !isHost()) {
+      setBanner("Host холболт удааширлаа — автоматаар сэргээж байна…", "error");
+    } else if (game.turn === app.myIndex) {
       setBanner(game.table ? "Таны ээлж — дийлэх хослол тавина." : "Таны ээлж — шинээр эхэлнэ.");
     } else {
       setBanner(`${turnName}-ийн ээлж…`);
@@ -823,6 +850,22 @@ function recordGameResult(game, won) {
 
 let lastShownRound = -1;
 
+function ratingDeltaForMatch(won) {
+  return (won ? 100 : -25) + app.stats.roundWins * 20 - app.stats.points * 3;
+}
+
+function matchSummaryNode(won) {
+  const node = document.createElement("div");
+  node.className = "match-summary";
+  const delta = app.mode === "online" && !app.user?.isAnonymous ? ratingDeltaForMatch(won) : null;
+  node.innerHTML = `
+    <div class="summary-stat" data-main="true"><b>${won ? "WIN" : "LOSE"}</b><span>Үр дүн</span></div>
+    <div class="summary-stat"><b>${app.stats.roundWins}</b><span>Үе хожсон</span></div>
+    <div class="summary-stat"><b>${app.stats.points}</b><span>Торгууль</span></div>
+    <div class="summary-stat"><b>${delta === null ? "—" : `${delta >= 0 ? "+" : ""}${delta}`}</b><span>Rank өөрчлөлт</span></div>`;
+  return node;
+}
+
 function handleRoundEnd() {
   const game = app.game;
   if (!game.lastRound || lastShownRound === game.round) return;
@@ -836,10 +879,11 @@ function handleRoundEnd() {
   app.stats.points += mine?.points ?? 0;
 
   const body = document.createElement("div");
-  body.appendChild(roundResultTable(outcome, game.players));
 
   if (game.phase === PHASE.GAME_END) {
     const won = game.gameWinner?.id === game.players[app.myIndex].id;
+    body.appendChild(matchSummaryNode(won));
+    body.appendChild(roundResultTable(outcome, game.players));
     recordGameResult(game, won);
     if (app.mode === "online" && isHost() && app.roomCode) {
       fb.updateRoom(app.roomCode, { status: "finished" }).catch(console.error);
@@ -856,6 +900,7 @@ function handleRoundEnd() {
     return;
   }
 
+  body.appendChild(roundResultTable(outcome, game.players));
   openModal({
     title: `${game.round}-р үе дууслаа`,
     body,
@@ -967,4 +1012,3 @@ function friendlyError(error) {
   if (code.includes("permission-denied")) return "Firestore дүрэм зөвшөөрөхгүй байна.";
   return error?.message ?? "Алдаа гарлаа.";
 }
-
