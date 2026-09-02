@@ -2028,11 +2028,11 @@ input {
   right: 0;
   bottom: 0;
   z-index: 50;
-  width: min(360px, 88vw);
+  width: min(300px, 82vw);
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 16px;
+  gap: 8px;
+  padding: 12px 14px;
   background: rgba(8, 19, 15, 0.97);
   border-left: 1px solid var(--line);
   box-shadow: var(--shadow-3);
@@ -2054,7 +2054,18 @@ input {
 .game-chat .chat-list {
   flex: 1;
   min-height: 0;
+  max-height: none;
+  /* Мессеж бүр агуулгынхаа өндөртэй байх — grid мөр сунаж 72px болдгийг зогсооно */
+  align-content: start;
   overflow-y: auto;
+}
+
+.game-chat .chat-message {
+  padding: 6px 9px;
+}
+
+.game-chat .chat-form {
+  margin-top: 2px;
 }
 
 @media (max-height: 480px) {
@@ -2261,8 +2272,9 @@ input {
 
 @media (max-height: 780px) {
   :root {
-    --card-w: 48px;
-    --card-h: 68px;
+    /* Хөзрийг томсгов — ширээн дээрх болон гарын хөзөр том харагдана */
+    --card-w: 60px;
+    --card-h: 84px;
   }
 
   .game-top {
@@ -2287,8 +2299,32 @@ input {
     display: none; /* намхан дэлгэцэд явцын жагсаалт зай эзэлнэ */
   }
 
+  /* Өрсөлдөгчийн самбарыг НАМХАН болгов — ширээ, хөзөрт илүү зай өгнө. */
   .seat-card {
-    padding: 7px 7px 6px;
+    padding: 6px 10px 6px;
+  }
+
+  .seat-head {
+    gap: 8px;
+  }
+
+  .seat-head .avatar {
+    width: 30px;
+    height: 30px;
+    font-size: 13px;
+  }
+
+  .seat-who strong {
+    font-size: 12.5px;
+  }
+
+  .seat-who small {
+    font-size: 10.5px;
+  }
+
+  .score-bar {
+    margin-top: 5px;
+    height: 3px;
   }
 
   .mini-hand {
@@ -2326,8 +2362,8 @@ input {
 
 @media (max-height: 680px) {
   :root {
-    --card-w: 44px;
-    --card-h: 62px;
+    --card-w: 54px;
+    --card-h: 76px;
   }
 
   .you-head .selection {
