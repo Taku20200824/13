@@ -415,6 +415,10 @@
           <span class="chip" id="roundChip">1-р үе</span>
           <span class="chip chip--muted">Хасагдах оноо: 30</span>
         </div>
+        <button class="chat-toggle" id="btnGameChat" type="button" aria-expanded="false" aria-controls="gameChat" title="Чат" hidden>
+          <span aria-hidden="true">💬</span>
+          <span class="chat-toggle__badge" id="gameChatBadge" hidden></span>
+        </button>
         <button class="link" id="btnRulesToggle" type="button">Дүрэм</button>
       </header>
 
@@ -462,6 +466,21 @@
           </div>
         </div>
       </div>
+
+      <!-- Тоглоом дундах чат — дээд самбарын товчоор нээж/хааж болно. -->
+      <aside class="game-chat" id="gameChat" hidden aria-label="Тоглоомын чат">
+        <div class="game-chat__head">
+          <h3>Чат</h3>
+          <button class="link" id="btnGameChatClose" type="button">Хаах</button>
+        </div>
+        <ul class="chat-list chat-list--room" id="gameChatList">
+          <li class="social-empty">Мессеж алга.</li>
+        </ul>
+        <form class="chat-form" id="gameChatForm">
+          <input id="gameChatInput" type="text" maxlength="180" placeholder="Message..." autocomplete="off" />
+          <button class="btn btn--small btn--primary" type="submit">Илгээх</button>
+        </form>
+      </aside>
     </section>
 
     <!-- ══════════ Modal ══════════ -->

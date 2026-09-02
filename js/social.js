@@ -9,6 +9,7 @@ let publicRoomsUnsub = null;
 let publicChatUnsub = null;
 let roomChatUnsub = null;
 let activeRoomChatCode = null;
+let roomChatSeen = 0; // тоглоомын чат хаалттай үед уншаагүй мессежийг тоолно
 
 function joinByCode(code) {
   const input = $("joinCode");
@@ -116,6 +117,25 @@ function wireSocialEvents() {
       showChatError(error, "roomChatList"),
     );
   });
+
+  // Тоглоом дундах чат — өрөөний чаттай ижил мессеж рүү бичнэ.
+  $("gameChatForm")?.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const input = $("gameChatInput");
+    const text = input?.value ?? "";
+    if (!text.trim() || !user || !activeRoomChatCode) return;
+    input.value = "";
+    await fb.sendRoomChat(activeRoomChatCode, user, text).catch((error) =>
+      showChatError(error, "gameChatList"),
+    );
+  });
+
+  $("btnGameChat")?.addEventListener("click", () => {
+    const drawer = $("gameChat");
+    if (drawer?.hidden) openGameChat();
+    else closeGameChat();
+  });
+  $("btnGameChatClose")?.addEventListener("click", closeGameChat);
 }
 
 /**
@@ -128,10 +148,58 @@ export function setActiveRoom(code) {
   roomChatUnsub?.();
   roomChatUnsub = null;
   activeRoomChatCode = code ?? null;
-  const list = $("roomChatList");
-  if (list) list.innerHTML = '<li class="social-empty">Мессеж алга.</li>';
+  roomChatSeen = 0;
+  ["roomChatList", "gameChatList"].forEach((id) => {
+    const list = $(id);
+    if (list) list.innerHTML = '<li class="social-empty">Мессеж алга.</li>';
+  });
+  updateGameChatBadge(0);
+  // Чат товч зөвхөн онлайн өрөөнд харагдана (bot-той офлайн тоглолтод хэрэггүй).
+  const fab = $("btnGameChat");
+  if (fab) fab.hidden = !code;
+  if (!code) closeGameChat();
   if (!code || !fb.online || !user) return;
-  roomChatUnsub = fb.watchRoomChat(code, (messages) => renderChat("roomChatList", messages));
+  // Нэг л subscription — өрөөний болон тоглоомын чат хоёуланд нь зурна.
+  roomChatUnsub = fb.watchRoomChat(code, (messages) => {
+    renderChat("roomChatList", messages);
+    renderChat("gameChatList", messages);
+    const drawer = $("gameChat");
+    if (drawer && !drawer.hidden) roomChatSeen = messages.length;
+    updateGameChatBadge(Math.max(0, messages.length - roomChatSeen));
+  });
+}
+
+/** Тоглоомын чат товчин дээрх уншаагүй мессежийн тоо. */
+function updateGameChatBadge(count) {
+  const badge = $("gameChatBadge");
+  if (!badge) return;
+  if (count > 0) {
+    badge.textContent = count > 9 ? "9+" : String(count);
+    badge.hidden = false;
+  } else {
+    badge.hidden = true;
+  }
+}
+
+function openGameChat() {
+  const drawer = $("gameChat");
+  const btn = $("btnGameChat");
+  if (!drawer) return;
+  drawer.hidden = false;
+  btn?.setAttribute("aria-expanded", "true");
+  const list = $("gameChatList");
+  if (list) list.scrollTop = list.scrollHeight;
+  // Нээмэгц бүгдийг уншсан гэж үзнэ
+  roomChatSeen = list ? list.querySelectorAll(".chat-message").length : 0;
+  updateGameChatBadge(0);
+  $("gameChatInput")?.focus();
+}
+
+function closeGameChat() {
+  const drawer = $("gameChat");
+  if (!drawer) return;
+  drawer.hidden = true;
+  $("btnGameChat")?.setAttribute("aria-expanded", "false");
 }
 
 async function bootSocial() {
