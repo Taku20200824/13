@@ -663,45 +663,107 @@ input {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Өрөөний суудал ───────────────────────────────
+   4 суудал үргэлж харагдана. Дугаар нь өөрчлөгддөггүй
+   тул хэн хаана сууж байгаа нь тогтвортой ойлгогдоно. */
+
 .seat-list {
   list-style: none;
   margin: 18px 0;
   padding: 0;
   display: grid;
   gap: 8px;
+  counter-reset: seat;
 }
 
 .seat {
-  display: flex;
+  display: grid;
+  grid-template-columns: 26px auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 11px 13px;
   border: 1px solid var(--line-soft);
   border-radius: var(--r-md);
-  background: rgba(0, 0, 0, 0.2);
+  background: rgba(0, 0, 0, 0.22);
+  transition:
+    border-color 0.2s,
+    background 0.2s;
 }
 
 .seat--empty {
   border-style: dashed;
-  color: var(--ink-faint);
+  background: rgba(0, 0, 0, 0.12);
 }
 
-.seat strong {
+.seat[data-me] {
+  border-color: var(--accent-deep);
+  background: rgba(53, 210, 154, 0.09);
+}
+
+.seat[data-host] {
+  border-color: rgba(231, 194, 106, 0.45);
+}
+
+.seat-num {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--ink-faint);
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.seat[data-host] .seat-num {
+  background: linear-gradient(160deg, var(--gold), var(--gold-deep));
+  color: #241c07;
+}
+
+.seat .avatar {
+  width: 32px;
+  height: 32px;
+  font-size: 13px;
+}
+
+.seat-name {
+  min-width: 0;
+  line-height: 1.25;
+}
+
+.seat-name strong {
+  display: block;
   font-size: 14px;
   font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seat-name small {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+}
+
+.seat--empty .seat-name strong {
+  color: var(--ink-faint);
+  font-weight: 400;
 }
 
 .seat .tag {
-  margin-left: auto;
   font-size: 11px;
-  padding: 3px 8px;
+  font-weight: 600;
+  padding: 4px 9px;
   border-radius: 99px;
   background: rgba(255, 255, 255, 0.07);
   color: var(--ink-faint);
+  white-space: nowrap;
 }
 
 .seat .tag--host {
-  background: rgba(231, 194, 106, 0.16);
+  background: rgba(231, 194, 106, 0.18);
   color: var(--gold);
 }
 
@@ -1573,5 +1635,356 @@ input {
   *::after {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
+  }
+}
+
+
+/* ══════════ Шууд үзүүлэлт (dashboard) ══════════ */
+
+.stat-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  max-width: 1180px;
+  width: 100%;
+  margin: 20px auto 0;
+  padding: 0 22px;
+}
+
+.stat {
+  display: grid;
+  gap: 2px;
+  padding: 16px 18px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: linear-gradient(180deg, rgba(23, 50, 42, 0.5), rgba(13, 27, 22, 0.45));
+}
+
+.stat-num {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.stat small {
+  font-size: 11.5px;
+  color: var(--ink-faint);
+  min-height: 1.2em;
+}
+
+.stat-bump {
+  animation: bump 0.4s var(--ease);
+}
+
+@keyframes bump {
+  40% {
+    transform: translateY(-3px);
+    color: var(--gold);
+  }
+}
+
+/* ══════════ Гараа чирж эрэмбэлэх ══════════ */
+
+.hand .card[data-dragging] {
+  opacity: 0.35;
+  transform: translateY(-6px) scale(0.97);
+}
+
+.hand .card[data-drop-left] {
+  box-shadow: -3px 0 0 0 var(--gold), var(--shadow-2);
+}
+
+.hand .card[data-drop-right] {
+  box-shadow: 3px 0 0 0 var(--gold), var(--shadow-2);
+}
+
+/* Ээлж биш үед: чирч болно, гэхдээ сонголт хаалттай */
+.hand .card[data-locked] {
+  cursor: grab;
+  opacity: 0.92;
+}
+
+.hand .card[data-locked]:hover {
+  transform: translateY(-4px);
+}
+
+.hand .card:not([data-locked]) {
+  cursor: pointer;
+}
+
+@media (max-width: 700px) {
+  .stat-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 14px;
+    gap: 8px;
+  }
+
+  .stat {
+    padding: 12px 13px;
+  }
+
+  .stat-num {
+    font-size: 21px;
+  }
+
+  .stat-label {
+    font-size: 10.5px;
+  }
+
+  .seat {
+    grid-template-columns: 22px auto minmax(0, 1fr) auto;
+    gap: 9px;
+    padding: 9px 10px;
+  }
+}
+
+
+/* ══════════ Lobby: өрөөний төрөл, public өрөө, chat ══════════ */
+
+.host-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.host-option {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+  padding: 11px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-md);
+  background: rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+}
+
+.host-option:has(input:checked) {
+  border-color: rgba(53, 210, 154, 0.58);
+  background: rgba(53, 210, 154, 0.1);
+}
+
+.host-option input {
+  accent-color: var(--accent-deep);
+}
+
+.host-option span {
+  display: grid;
+  min-width: 0;
+  line-height: 1.2;
+}
+
+.host-option b {
+  font-size: 13px;
+}
+
+.host-option small {
+  color: var(--ink-faint);
+  font-size: 11.5px;
+}
+
+.public-rooms,
+.room-chat {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.panel-head--compact {
+  margin-bottom: 8px;
+}
+
+.panel-head h3,
+.room-chat h3 {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.public-room-list,
+.chat-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.public-room-list {
+  display: grid;
+  gap: 7px;
+}
+
+.public-room {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border: 1px solid var(--line-soft);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.public-room div {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.public-room strong,
+.chat-message strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.public-room small {
+  color: var(--ink-faint);
+  font-size: 12px;
+}
+
+.chat-list {
+  display: grid;
+  gap: 7px;
+  max-height: 190px;
+  overflow-y: auto;
+  padding-right: 4px;
+  scrollbar-width: thin;
+}
+
+.chat-list--room {
+  max-height: 150px;
+}
+
+.chat-message {
+  display: grid;
+  grid-template-columns: minmax(72px, 110px) minmax(0, 1fr);
+  gap: 8px;
+  align-items: baseline;
+  padding: 8px 9px;
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.2);
+  font-size: 13px;
+}
+
+.chat-message strong {
+  color: var(--accent);
+  font-size: 12px;
+}
+
+.chat-message span {
+  overflow-wrap: anywhere;
+  color: var(--ink-soft);
+}
+
+.chat-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.chat-form input {
+  min-width: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: rgba(0, 0, 0, 0.28);
+  color: var(--ink);
+  outline: none;
+}
+
+.chat-form input:focus {
+  border-color: var(--accent-deep);
+}
+
+.social-empty {
+  padding: 12px 4px;
+  color: var(--ink-faint);
+  font-size: 13px;
+  text-align: center;
+}
+
+@media (max-width: 700px) {
+  .selected-preview {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    min-height: 118px;
+    margin-top: 10px;
+    padding: 10px;
+  }
+
+  .selected-preview__label {
+    min-width: 0;
+    min-height: 24px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line-soft);
+    padding: 0 0 7px;
+  }
+
+  .selected-preview__cards {
+    justify-content: flex-start;
+    min-height: 82px;
+    padding-bottom: 4px;
+  }
+
+  .selected-preview__cards .card {
+    --card-w: 58px;
+    --card-h: 82px;
+    margin-left: 0 !important;
+  }
+
+  .selected-preview__cards .card .big {
+    font-size: 22px;
+  }
+
+  .controls {
+    column-gap: 12px;
+    row-gap: 12px;
+  }
+
+  .controls .btn {
+    min-width: 0;
+  }
+
+  #btnPass {
+    grid-column: 1 / 2;
+    margin-left: 0;
+  }
+
+  #btnPlay {
+    grid-column: 2 / 4;
+  }
+
+  #btnPass,
+  #btnPlay {
+    min-width: 0;
+    padding-inline: 10px;
+  }
+
+  .host-options {
+    grid-template-columns: 1fr;
+  }
+
+  .chat-message {
+    grid-template-columns: 1fr;
+    gap: 2px;
+  }
+
+  .chat-form {
+    grid-template-columns: 1fr;
   }
 }

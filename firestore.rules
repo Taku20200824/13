@@ -7,45 +7,77 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function shortText(value) {
-      return value is string && value.size() > 0 && value.size() <= 180;
+    function me() {
+      return request.auth.uid;
+    }
+
+    function shortText(text) {
+      return text is string && text.size() > 0 && text.size() <= 180;
     }
 
     // ── Хэрэглэгчийн профайл ба ranking ──────────────
     match /users/{uid} {
-      // Ranking бүгдэд харагдана
       allow read: if signedIn();
-      // Зөвхөн өөрийн бичлэгээ өөрчилнө
-      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && me() == uid;
       allow delete: if false;
+    }
+
+    // ── Presence: хэн онлайн байгаа ──────────────────
+    match /presence/{uid} {
+      allow read: if signedIn();
+      // Зөвхөн өөрийн дохиогоо бичнэ — өөр хүнийг "онлайн" болгож болохгүй
+      allow delete: if signedIn() && me() == uid;
+      allow create, update: if signedIn() && me() == uid
+                            && request.resource.data.uid == uid;
     }
 
     // ── Нийтийн chat ─────────────────────────────────
     match /publicChat/{messageId} {
       allow read: if signedIn();
       allow create: if signedIn()
-                    && request.resource.data.uid == request.auth.uid
+                    && request.resource.data.uid == me()
                     && shortText(request.resource.data.text);
       allow update, delete: if false;
     }
 
     // ── Өрөө ─────────────────────────────────────────
     match /rooms/{code} {
+
+      function existing() { return resource.data; }
+      function incoming() { return request.resource.data; }
+      function isMember() { return me() in existing().members; }
+      function isHost()   { return existing().host == me(); }
+
+      // Host солигдож болох цорын ганц тохиолдол: одоогийн host
+      // суудлаа орхисон, эсвэл удаан дохиогүй байх.
+      function hostUnchanged() { return incoming().host == existing().host; }
+      function hostSeatGone()  { return !(existing().host in existing().members); }
+      function hostTimedOut() {
+        return existing().hostSeenAt is number
+               && request.time.toMillis() - existing().hostSeenAt > 30000;
+      }
+
       allow read: if signedIn();
 
-      // Үүсгэгч нь заавал өөрөө host байна
       allow create: if signedIn()
-                    && request.resource.data.host == request.auth.uid
-                    && request.resource.data.status == 'waiting'
-                    && request.resource.data.visibility in ['public', 'private'];
+                    && incoming().host == me()
+                    && incoming().status == 'waiting'
+                    && me() in incoming().members;
 
-      // Өрөөнд байгаа хүн (эсвэл нэгдэж буй хүн) шинэчилж чадна
-      allow update: if signedIn() && (
-                      request.auth.uid in resource.data.members ||
-                      request.auth.uid in request.resource.data.members
-                    );
+      // Гишүүн болон шинээр нэгдэж буй хүн шинэчилж чадна, ГЭХДЭЭ:
+      //   • host-ыг дур мэдэн өөрчилж болохгүй,
+      //   • тоглоом эхлүүлэх (status өөрчлөх) эрх зөвхөн host-д.
+      allow update: if signedIn()
+                    && (isMember() || me() in incoming().members)
+                    && (
+                         hostUnchanged()
+                         || isHost()
+                         || ((hostSeatGone() || hostTimedOut()) && incoming().host == me())
+                         || incoming().host == null
+                       )
+                    && (incoming().status == existing().status || isHost());
 
-      allow delete: if signedIn() && request.auth.uid == resource.data.host;
+      allow delete: if signedIn() && isHost();
 
       // ── Өрөөний chat ───────────────────────────────
       match /messages/{messageId} {
@@ -54,11 +86,11 @@ service cloud.firestore {
         }
         allow read: if signedIn() && (
                       room().visibility == 'public' ||
-                      request.auth.uid in room().members
+                      me() in room().members
                     );
         allow create: if signedIn()
-                      && request.auth.uid in room().members
-                      && request.resource.data.uid == request.auth.uid
+                      && me() in room().members
+                      && request.resource.data.uid == me()
                       && shortText(request.resource.data.text);
         allow update, delete: if false;
       }
@@ -69,11 +101,11 @@ service cloud.firestore {
           return get(/databases/$(database)/documents/rooms/$(code)).data;
         }
         allow read: if signedIn() && (
-                      resource.data.uid == request.auth.uid ||
-                      room().host == request.auth.uid
+                      resource.data.uid == me() ||
+                      room().host == me()
                     );
-        // Хуваарилалт болон нүүдлийг өрөөний гишүүд бичнэ
-        allow write: if signedIn() && request.auth.uid in room().members;
+        // Өөрийн гараа, эсвэл host нь bot-ын гарыг бичнэ
+        allow write: if signedIn() && me() in room().members;
       }
     }
   }

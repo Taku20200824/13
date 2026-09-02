@@ -1,5 +1,6 @@
 // DOM зураглал — тоглоомын логикоос ангид.
 import { detect } from "./rules.js";
+import { escapeHtml as escapeText } from "./text.js";
 import { pointsLabel } from "./scoring.js";
 import { ELIMINATION_SCORE } from "./scoring.js";
 
@@ -93,7 +94,7 @@ export function renderOpponents(game, myIndex) {
   const passedSet = game.passed?.has ? game.passed : new Set(game.passed ?? []);
 
   game.players
-    .filter((p) => p.index !== myIndex)
+    .filter((p) => p.index !== myIndex && !p.absent)
     .forEach((player) => {
       const count = player.handCount ?? player.hand.length;
       const isTurn = player.index === game.turn && game.phase === "playing";
@@ -171,11 +172,6 @@ export function renderOpponents(game, myIndex) {
     });
 }
 
-const escapeText = (text) =>
-  String(text).replace(
-    /[&<>"']/g,
-    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
-  );
 
 export function renderPile(game) {
   const pile = $("pile");
@@ -197,11 +193,16 @@ export function renderHand(game, myIndex, selected, hintIds = new Set()) {
   const me = game.players[myIndex];
   const myTurn = game.turn === myIndex && game.phase === "playing";
 
+  // ЧУХАЛ: хөзрийг disabled болгохгүй. Disabled товч drag эхлүүлж чаддаггүй
+  // тул өмнө нь ээлж биш үед гараа эрэмбэлэх боломжгүй байсан.
+  // Оронд нь `data-locked` тэмдэглэгээ өгч, сонголтыг л хаана.
   me.hand.forEach((card) => {
     const node = cardNode(card, { interactive: true });
     if (selected.has(card.id)) node.setAttribute("data-selected", "");
     if (hintIds.has(card.id)) node.setAttribute("data-hint", "");
-    node.disabled = !myTurn;
+    if (!myTurn) node.setAttribute("data-locked", "");
+    node.draggable = true;
+    node.setAttribute("aria-disabled", String(!myTurn));
     wrap.appendChild(node);
   });
 }

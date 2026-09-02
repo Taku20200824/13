@@ -1,4 +1,5 @@
 import * as fb from "./firebase.js";
+import { escapeHtml } from "./text.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -7,12 +8,6 @@ let publicRoomsUnsub = null;
 let publicChatUnsub = null;
 let roomChatUnsub = null;
 let activeRoomChatCode = null;
-
-const escapeHtml = (text) =>
-  String(text ?? "").replace(
-    /[&<>"']/g,
-    (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch],
-  );
 
 const roomVisibility = () =>
   document.querySelector('input[name="roomVisibility"]:checked')?.value === "public" ? "public" : "private";
@@ -81,47 +76,7 @@ function stopLobbySocial() {
   publicChatUnsub = null;
 }
 
-function watchActiveRoomChat() {
-  if (!user) return;
-  const roomScreen = $("screenRoom")?.hasAttribute("data-active");
-  const gameScreen = $("screenGame")?.hasAttribute("data-active");
-  const code = $("roomCode")?.textContent?.trim();
-  const shouldWatch = (roomScreen || gameScreen) && code && code !== "------";
-
-  if (!shouldWatch) {
-    roomChatUnsub?.();
-    roomChatUnsub = null;
-    activeRoomChatCode = null;
-    return;
-  }
-  if (activeRoomChatCode === code) return;
-
-  roomChatUnsub?.();
-  activeRoomChatCode = code;
-  roomChatUnsub = fb.watchRoomChat(code, (messages) => renderChat("roomChatList", messages));
-}
-
 function wireSocialEvents() {
-  $("btnCreateRoom")?.addEventListener(
-    "click",
-    async (event) => {
-      if (!fb.online || !user) return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      try {
-        const code = await fb.createRoom(user, { allowBots: true, visibility: roomVisibility() });
-        joinByCode(code);
-      } catch (error) {
-        const hint = $("lobbyHint");
-        if (hint) {
-          hint.textContent = error?.message ?? "Өрөө үүсгэж чадсангүй.";
-          hint.setAttribute("data-error", "");
-        }
-      }
-    },
-    true,
-  );
-
   $("btnRefreshPublicRooms")?.addEventListener("click", () => {
     stopLobbySocial();
     startLobbySocial();
@@ -145,9 +100,22 @@ function wireSocialEvents() {
     await fb.sendRoomChat(activeRoomChatCode, user, text).catch(console.error);
   });
 
-  const observer = new MutationObserver(watchActiveRoomChat);
-  observer.observe(document.body, { subtree: true, attributes: true, attributeFilter: ["data-active"] });
-  setInterval(watchActiveRoomChat, 1200);
+}
+
+/**
+ * Идэвхтэй өрөөг main.js илэрхий хэлж өгнө.
+ * Өмнө нь `#roomCode` элементийн текстийг MutationObserver болон
+ * 1.2 секунд тутмын setInterval-аар тагнадаг байсан — найдваргүй, үрэлгэн.
+ */
+export function setActiveRoom(code) {
+  if (activeRoomChatCode === code) return;
+  roomChatUnsub?.();
+  roomChatUnsub = null;
+  activeRoomChatCode = code ?? null;
+  const list = $("roomChatList");
+  if (list) list.innerHTML = '<li class="social-empty">Мессеж алга.</li>';
+  if (!code || !fb.online || !user) return;
+  roomChatUnsub = fb.watchRoomChat(code, (messages) => renderChat("roomChatList", messages));
 }
 
 async function bootSocial() {

@@ -10,7 +10,15 @@ export const PHASE = {
   GAME_END: "gameEnd",
 };
 
+/**
+ * @param {Array} playerDefs  суудал бүрийн тодорхойлолт (индекс = суудлын дугаар)
+ * @param {{seed?:number, starterRule?:string, absent?:number[]}} options
+ *        absent — хоосон суудлын дугаарууд. Тэдгээр нь хөзөр авахгүй,
+ *        ээлж ч авахгүй. Индексийг гулсуулахгүйн тулд массиваас
+ *        ХАСАХГҮЙ, зөвхөн идэвхгүй гэж тэмдэглэнэ.
+ */
 export function createGame(playerDefs, options = {}) {
+  const absent = new Set(options.absent ?? []);
   const game = {
     players: playerDefs.map((p, index) => ({
       index,
@@ -19,7 +27,8 @@ export function createGame(playerDefs, options = {}) {
       isBot: Boolean(p.isBot),
       hand: [],
       score: 0,
-      eliminated: false,
+      eliminated: absent.has(index),
+      absent: absent.has(index),
       lastAction: null, // { kind: "play" | "pass", label }
     })),
     round: 0,
@@ -50,6 +59,11 @@ export function startRound(game, seed) {
   game.passed = new Set();
   game.lastRound = null;
   game.players.forEach((p) => (p.lastAction = null));
+
+  // Хоосон суудал үе бүрт идэвхгүй хэвээр
+  game.players.forEach((p) => {
+    if (p.absent) p.eliminated = true;
+  });
 
   const active = activePlayers(game);
   const deck = shuffle(makeDeck(), seed);
@@ -223,6 +237,7 @@ export function serializeGame(game) {
       handCount: p.hand.length,
       score: p.score,
       eliminated: p.eliminated,
+      absent: Boolean(p.absent),
       lastAction: p.lastAction ?? null,
     })),
     round: game.round,

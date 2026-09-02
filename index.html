@@ -17,7 +17,6 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="styles.css" />
-    <link rel="stylesheet" href="custom.css" />
   </head>
   <body>
     <!-- ══════════ Нэвтрэх ══════════ -->
@@ -76,6 +75,29 @@
         </div>
         <div class="account" id="account"></div>
       </header>
+
+      <section class="stat-strip" aria-label="Шууд үзүүлэлт">
+        <div class="stat">
+          <span class="stat-num" id="statOnline">—</span>
+          <span class="stat-label">Онлайн тоглогч</span>
+          <small id="statOnlineSub"></small>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="statPublicRooms">—</span>
+          <span class="stat-label">Public өрөө</span>
+          <small id="statPublicSub"></small>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="statPrivateRooms">—</span>
+          <span class="stat-label">Private өрөө</span>
+          <small id="statPrivateSub"></small>
+        </div>
+        <div class="stat">
+          <span class="stat-num" id="statRunning">—</span>
+          <span class="stat-label">Явагдаж буй тоглоом</span>
+          <small id="statRunningSub"></small>
+        </div>
+      </section>
 
       <main class="lobby">
         <div class="lobby-main">
@@ -253,11 +275,6 @@
             <div class="selection" id="selection">Хөзөр сонгоно уу</div>
           </div>
 
-          <div class="selected-preview" id="selectedPreview" aria-live="polite">
-            <div class="selected-preview__label">Гаргах хөзөр</div>
-            <div class="selected-preview__cards" id="selectedPreviewCards">Хөзөр сонгоно уу</div>
-          </div>
-
           <div class="hand" id="hand" aria-label="Таны хөзрүүд"></div>
 
           <div class="controls">
@@ -284,6 +301,5 @@
 
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/social.js"></script>
-    <script type="module" src="js/hand-enhancements.js"></script>
   </body>
 </html>
