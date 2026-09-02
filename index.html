@@ -32,6 +32,80 @@
         transform-origin: 50% 120%;
       }
 
+      .lb-row {
+        grid-template-columns: 28px minmax(0, 1fr) auto;
+        align-items: center;
+      }
+
+      .lb-row[data-rank="1"] {
+        border-color: rgba(231, 194, 106, 0.55);
+        background: linear-gradient(135deg, rgba(231, 194, 106, 0.14), rgba(53, 210, 154, 0.05));
+      }
+
+      .lb-row[data-rank="2"] {
+        border-color: rgba(212, 226, 220, 0.34);
+        background: rgba(255, 255, 255, 0.055);
+      }
+
+      .lb-row[data-rank="3"] {
+        border-color: rgba(202, 139, 92, 0.4);
+        background: rgba(202, 139, 92, 0.08);
+      }
+
+      .lb-score small {
+        display: block;
+        color: var(--ink-faint);
+        font-size: 10.5px;
+        font-weight: 600;
+        line-height: 1.25;
+        text-align: right;
+        white-space: nowrap;
+      }
+
+      .lb-detail {
+        grid-column: 2 / 4;
+        color: var(--ink-faint);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+
+      .match-summary {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 8px;
+        margin: 4px 0 16px;
+      }
+
+      .summary-stat {
+        padding: 10px;
+        border: 1px solid var(--line-soft);
+        border-radius: var(--r-sm);
+        background: rgba(255, 255, 255, 0.04);
+      }
+
+      .summary-stat[data-main="true"] {
+        border-color: rgba(53, 210, 154, 0.45);
+        background: rgba(53, 210, 154, 0.1);
+      }
+
+      .summary-stat b {
+        display: block;
+        color: var(--accent);
+        font-size: 18px;
+        font-variant-numeric: tabular-nums;
+        line-height: 1.1;
+      }
+
+      .summary-stat span {
+        display: block;
+        margin-top: 4px;
+        color: var(--ink-faint);
+        font-size: 11px;
+        font-weight: 600;
+        line-height: 1.25;
+      }
+
       @keyframes dealToHand {
         from {
           opacity: 0;
@@ -55,6 +129,41 @@
         to {
           opacity: 1;
           transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+        }
+      }
+
+      @media (max-width: 700px) {
+        .lb-row {
+          grid-template-columns: 22px minmax(0, 1fr) auto;
+          gap: 7px;
+        }
+
+        .lb-score {
+          font-size: 12px;
+        }
+
+        .lb-score small,
+        .lb-detail {
+          font-size: 10.5px;
+        }
+
+        .match-summary {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+      }
+
+      @media (max-height: 680px) {
+        .modal-card {
+          padding: 18px;
+        }
+
+        .match-summary {
+          gap: 6px;
+          margin-bottom: 10px;
+        }
+
+        .summary-stat {
+          padding: 8px;
         }
       }
 
