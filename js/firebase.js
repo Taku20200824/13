@@ -81,7 +81,7 @@ export async function ensureProfile(user, name) {
     await mod.setDoc(ref, {
       displayName,
       photoURL: user.photoURL ?? null,
-      anonymous: user.isAnonymous,
+      anonymous: Boolean(user.isAnonymous),
       games: 0,
       wins: 0,
       losses: 0,
@@ -92,9 +92,14 @@ export async function ensureProfile(user, name) {
       updatedAt: mod.serverTimestamp(),
     });
   } else {
-    const patch = { displayName, updatedAt: mod.serverTimestamp() };
-    // Хуучин профайлд дутуу талбаруудыг нөхнө
     const data = snap.data();
+    const patch = {
+      displayName,
+      photoURL: user.photoURL ?? data.photoURL ?? null,
+      anonymous: Boolean(user.isAnonymous),
+      updatedAt: mod.serverTimestamp(),
+    };
+    // Хуучин профайлд дутуу талбаруудыг нөхнө
     if (typeof data.losses !== "number") patch.losses = Math.max(0, (data.games ?? 0) - (data.wins ?? 0));
     if (!Array.isArray(data.recordedGames)) patch.recordedGames = [];
     await mod.updateDoc(ref, patch);
@@ -126,6 +131,8 @@ export async function recordResult(uid, stats) {
     const snap = await tx.get(ref);
     const data = snap.exists() ? snap.data() : null;
 
+    // Ranking зөвхөн Google account-аар орсон хэрэглэгчдэд тооцогдоно.
+    if (!snap.exists() || data?.anonymous === true) return;
     if (data?.recordedGames?.includes(stats.gameId)) return; // давхардлаас хамгаална
 
     const base = data ?? { games: 0, wins: 0, losses: 0, rounds: 0, roundWins: 0, points: 0 };
@@ -143,8 +150,7 @@ export async function recordResult(uid, stats) {
       updatedAt: mod.serverTimestamp(),
     };
 
-    if (snap.exists()) tx.update(ref, patch);
-    else tx.set(ref, { displayName: stats.name ?? "Зочин", photoURL: null, anonymous: true, ...patch });
+    tx.update(ref, patch);
     recorded = true;
   });
 
@@ -162,7 +168,7 @@ export async function fetchLeaderboard(max = 20) {
   const snap = await mod.getDocs(q);
   return snap.docs
     .map((d) => ({ uid: d.id, ...d.data() }))
-    .filter((row) => (row.games ?? 0) > 0)
+    .filter((row) => row.anonymous !== true && (row.games ?? 0) > 0)
     .sort(
       (a, b) =>
         (b.wins ?? 0) - (a.wins ?? 0) ||
