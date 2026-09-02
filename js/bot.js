@@ -364,6 +364,11 @@ function chooseHard(game, index, moves, w = WEIGHTS) {
   if (finisher) return finisher;
 
   const leading = !game.table;
+  const emergency = opponentMin <= 1;
+  if (emergency) {
+    const block = chooseEmergencyBlock(moves, planner, unseen, leading);
+    if (block) return block;
+  }
 
   const scored = moves.map((combo) => {
     const mask = planner.maskOf(combo.cards);
@@ -409,6 +414,30 @@ function chooseHard(game, index, moves, w = WEIGHTS) {
 
   if (!leading && w.allowPass && shouldPass(best, basePlays, opponentMin, hand.length, pressure, w)) return null;
   return best.combo;
+}
+
+function chooseEmergencyBlock(moves, planner, unseen, leading) {
+  const scored = moves.map((combo) => {
+    const mask = planner.maskOf(combo.cards);
+    const after = planner.minPlays(planner.fullMask & ~mask);
+    const risk = beatRisk(combo, unseen);
+    const top = topValue(combo);
+    let score = risk * 100 - top * 0.8 + after * 8;
+
+    if (leading) {
+      if (combo.size > 1) score -= 180 + combo.size * 18;
+      if (combo.size === 1) score += 45;
+      if (risk === 0) score -= 90;
+    } else {
+      if (risk === 0) score -= 120;
+      if (combo.size === 1) score -= top * 0.5;
+    }
+
+    return { combo, score };
+  });
+
+  scored.sort((a, b) => a.score - b.score || topValue(b.combo) - topValue(a.combo));
+  return scored[0]?.combo ?? null;
 }
 
 function shouldPass(best, basePlays, opponentMin, handSize, pressure, w) {
