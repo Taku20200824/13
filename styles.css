@@ -2252,6 +2252,141 @@ input {
   }
 }
 
+/* ══════════ Хэвтээ (landscape) намхан дэлгэц ══════════
+   Утсаа хажуу тийш эргүүлэхэд өндөр багасаж, төвийн (pile) эгнээ 0 болтлоо
+   шахагдаж, ширээн дээрх хөзөр таны самбарын ард ороод харагдахгүй болдог
+   байв. Энд бүх хэсгийг нягтруулж, pile-ийн өндрийг баталгаажуулна. */
+@media (max-height: 480px) {
+  :root {
+    --card-w: 33px;
+    --card-h: 46px;
+  }
+
+  /* Өрсөлдөгчийн самбарыг намхан болгоно — доод прогресс бар, мини гар
+     хэвтээ горимд зай эзэлдэг тул нууна. */
+  .score-bar,
+  .mini-hand {
+    display: none;
+  }
+
+  .seat-head .avatar {
+    width: 28px;
+    height: 28px;
+  }
+
+  .game-top {
+    padding: 3px 10px;
+    gap: 6px;
+  }
+
+  /* Хэвтээ утсанд өргөн нь 700-аас их байж болох тул max-width дүрэм ажиллахгүй.
+     Дээд самбарыг энд шууд нягтруулна. */
+  .game-top .link {
+    font-size: 12px;
+    padding: 5px 2px;
+    white-space: nowrap;
+    flex: none;
+  }
+
+  .round-meta {
+    gap: 5px;
+    min-width: 0;
+    flex: 1;
+    justify-content: center;
+  }
+
+  .chip {
+    padding: 4px 9px;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .chip--muted {
+    display: none; /* "Хасагдах оноо" тоглоом явцад чухал биш — зай чөлөөлнө */
+  }
+
+  .table-felt {
+    padding: 6px;
+    gap: 6px;
+    /* Төвийн эгнээ хөзрийн өндрөөс доош шахагдахгүй — pile үргэлж харагдана */
+    grid-template-rows: auto minmax(var(--card-h), 1fr) auto;
+  }
+
+  .opponents {
+    gap: 6px;
+  }
+
+  .seat-card {
+    padding: 5px 7px 5px;
+  }
+
+  .seat-name {
+    font-size: 12px;
+  }
+
+  .center {
+    padding: 4px 8px;
+  }
+
+  .pile-owner {
+    min-height: 0;
+    margin-bottom: 2px;
+    font-size: 11px;
+  }
+
+  .banner {
+    display: none; /* намхан дэлгэцэд banner зай эзэлнэ — статус seat badge дээр байгаа */
+  }
+
+  .you {
+    padding: 5px 10px 7px;
+  }
+
+  .you-head {
+    margin-bottom: 4px;
+  }
+
+  .hand {
+    padding: 6px 4px 0;
+    min-height: calc(var(--card-h) + 8px);
+  }
+
+  .controls {
+    margin-top: 5px;
+    gap: 5px;
+  }
+
+  .controls .btn {
+    padding: 8px 6px;
+    font-size: 12.5px;
+  }
+
+  .play-preview {
+    margin: 4px 0 0;
+    padding: 4px 8px;
+  }
+}
+
+/* Маш намхан дэлгэц (жижиг утас хэвтээ) — хамгийн бага хэмжээ. */
+@media (max-height: 350px) {
+  :root {
+    --card-w: 31px;
+    --card-h: 43px;
+  }
+
+  .pile-owner {
+    display: none; /* хэн тавьсныг badge/log-оос харна — зай чухал */
+  }
+
+  .you {
+    padding: 4px 10px 6px;
+  }
+
+  .you-head {
+    margin-bottom: 3px;
+  }
+}
+
 /* ══════════ Утасны нарийн тохируулга ══════════ */
 
 @media (max-width: 700px) {
