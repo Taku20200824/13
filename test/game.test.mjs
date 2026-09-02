@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { makeCard } from "../js/cards.js";
+import { assertUniqueCards, dealHands, makeCard, makeDeck, shuffle } from "../js/cards.js";
 import { createGame, play, pass, nextRound, PHASE } from "../js/game.js";
 import { detect } from "../js/rules.js";
 
@@ -24,10 +24,30 @@ function rig(game, hands, turn, table) {
   return game;
 }
 
+test("deck, shuffle, deal бүгд давхардалгүй байна", () => {
+  const deck = makeDeck();
+  assert.equal(deck.length, 52);
+  assertUniqueCards(deck);
+
+  const shuffled = shuffle(deck, 123);
+  assert.equal(shuffled.length, 52);
+  assertUniqueCards(shuffled);
+  assert.notDeepEqual(shuffled.map((c) => c.id), deck.map((c) => c.id));
+
+  const hands = dealHands(4, 13, 99);
+  hands.forEach((hand) => assert.equal(hand.length, 13));
+  assertUniqueCards(hands.flat(), "test deal");
+});
+
+test("давхардсан хөзөр shuffle рүү орвол шууд алдаа өгнө", () => {
+  assert.throws(() => shuffle([makeCard("3", "D"), makeCard("3", "D")]), /давхардсан/);
+});
+
 test("шинэ тоглоом: 4 хүнд 13-аар тарааж, 3♦-тэй хүн эхэлнэ", () => {
   const game = createGame(defs, { seed: 7 });
   assert.equal(game.players.length, 4);
   game.players.forEach((p) => assert.equal(p.hand.length, 13));
+  assertUniqueCards(game.players.flatMap((p) => p.hand));
   assert.equal(game.startingCardId, "3D");
   assert.ok(game.players[game.turn].hand.some((c) => c.id === "3D"));
   assert.equal(game.mustPlayStartingCard, false);
@@ -124,6 +144,7 @@ test("хасагдсан тоглогч дараагийн үед оролцох
   const dealt = game.players.filter((p) => !p.eliminated);
   assert.equal(dealt.length, 3);
   dealt.forEach((p) => assert.equal(p.hand.length, 13));
+  assertUniqueCards(dealt.flatMap((p) => p.hand));
 });
 
 test("сүүлд үлдсэн тоглогч тоглоомын ялагч", () => {
