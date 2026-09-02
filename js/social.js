@@ -1,4 +1,5 @@
 import * as fb from "./firebase.js";
+import { seatCount } from "./seats.js";
 import { escapeHtml } from "./text.js";
 
 const $ = (id) => document.getElementById(id);
@@ -8,9 +9,6 @@ let publicRoomsUnsub = null;
 let publicChatUnsub = null;
 let roomChatUnsub = null;
 let activeRoomChatCode = null;
-
-const roomVisibility = () =>
-  document.querySelector('input[name="roomVisibility"]:checked')?.value === "public" ? "public" : "private";
 
 function joinByCode(code) {
   const input = $("joinCode");
@@ -29,12 +27,14 @@ function renderPublicRooms(rooms) {
   }
   list.innerHTML = "";
   rooms.forEach((room) => {
+    const filled = seatCount(room.seats ?? []);
+    const host = room.seats?.find((seat) => seat?.uid === room.host) ?? room.seats?.find(Boolean);
     const li = document.createElement("li");
     li.className = "public-room";
     li.innerHTML = `
       <div>
-        <strong>${escapeHtml(room.seats?.[0]?.name ?? "Хост")}</strong>
-        <small>${room.seats?.length ?? 0}/4 хүн · ${room.allowBots ? "bot зөвшөөрнө" : "зөвхөн хүн"}</small>
+        <strong>${escapeHtml(host?.name ?? "Хост")}</strong>
+        <small>${filled}/4 хүн · ${room.allowBots ? "bot зөвшөөрнө" : "зөвхөн хүн"}</small>
       </div>
       <button class="btn btn--small" type="button" data-code="${escapeHtml(room.code)}">Орох</button>`;
     li.querySelector("button")?.addEventListener("click", () => joinByCode(room.code));
@@ -99,7 +99,6 @@ function wireSocialEvents() {
     input.value = "";
     await fb.sendRoomChat(activeRoomChatCode, user, text).catch(console.error);
   });
-
 }
 
 /**
