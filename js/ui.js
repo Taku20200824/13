@@ -70,6 +70,8 @@ export function cardNode(card, { interactive = false } = {}) {
 }
 
 const initials = (name) => (name || "?").trim().slice(0, 1).toUpperCase();
+const handDealRounds = new Map();
+const opponentDealRounds = new Map();
 
 function avatarNode(player) {
   const node = document.createElement("span");
@@ -155,11 +157,16 @@ export function renderOpponents(game, myIndex) {
 
       const mini = document.createElement("div");
       mini.className = "mini-hand";
+      const opponentKey = `${myIndex}:${player.index}`;
+      const shouldDeal = count > 0 && game.phase === "playing" && opponentDealRounds.get(opponentKey) !== game.round;
+      if (shouldDeal) mini.dataset.dealing = "";
       for (let i = 0; i < Math.min(count, 13); i += 1) {
         const back = document.createElement("span");
         back.className = "card-back";
+        back.style.setProperty("--deal-index", String(player.index * 13 + i));
         mini.appendChild(back);
       }
+      if (shouldDeal) opponentDealRounds.set(opponentKey, game.round);
       node.appendChild(mini);
 
       const bar = document.createElement("div");
@@ -193,12 +200,16 @@ export function renderHand(game, myIndex, selected, hintIds = new Set()) {
   wrap.innerHTML = "";
   const me = game.players[myIndex];
   const myTurn = game.turn === myIndex && game.phase === "playing";
+  const handKey = String(myIndex);
+  const shouldDeal = me.hand.length > 0 && game.phase === "playing" && handDealRounds.get(handKey) !== game.round;
+  wrap.toggleAttribute("data-dealing", shouldDeal);
 
   // ЧУХАЛ: хөзрийг disabled болгохгүй. Disabled товч drag эхлүүлж чаддаггүй
   // тул өмнө нь ээлж биш үед гараа эрэмбэлэх боломжгүй байсан.
   // Оронд нь `data-locked` тэмдэглэгээ өгч, сонголтыг л хаана.
-  me.hand.forEach((card) => {
+  me.hand.forEach((card, index) => {
     const node = cardNode(card, { interactive: true });
+    node.style.setProperty("--deal-index", String(index));
     if (selected.has(card.id)) node.setAttribute("data-selected", "");
     if (hintIds.has(card.id)) node.setAttribute("data-hint", "");
     if (!myTurn) node.setAttribute("data-locked", "");
@@ -208,6 +219,7 @@ export function renderHand(game, myIndex, selected, hintIds = new Set()) {
     node.setAttribute("aria-disabled", String(!myTurn));
     wrap.appendChild(node);
   });
+  if (shouldDeal) handDealRounds.set(handKey, game.round);
 }
 
 /** Сонгосон хөзрүүдийг жижигрүүлж харуулна. Сонголтгүй бол огт харагдахгүй. */
