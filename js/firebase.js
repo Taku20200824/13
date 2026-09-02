@@ -247,6 +247,11 @@ export async function createRoom(user, options = {}) {
       seats: serializeSeats(seats),
       members: [user.uid],
       state: null,
+      // stateVersion-ыг ЭХНЭЭС нь тодорхойлно. Өмнө нь энэ талбар байхгүй
+      // үүсдэг тул тоглоом эхлүүлэх эхний бичилт дээр Firestore дүрмийн
+      // хувилбар шалгалт (stateVersion 0 → 1) унаж, host permission-denied
+      // авдаг байв. Эндээс 0-оор эхлүүлснээр анхны шилжилт зөв тоологдоно.
+      stateVersion: 0,
       createdAt: mod.serverTimestamp(),
       updatedAt: mod.serverTimestamp(),
     });
