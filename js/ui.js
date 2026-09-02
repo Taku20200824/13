@@ -97,6 +97,7 @@ export function renderOpponents(game, myIndex) {
     .filter((p) => p.index !== myIndex && !p.absent)
     .forEach((player) => {
       const count = player.handCount ?? player.hand.length;
+      const passLabel = `пасс · ${count}`;
       const isTurn = player.index === game.turn && game.phase === "playing";
       const hasPassed = passedSet.has(player.index);
 
@@ -115,7 +116,7 @@ export function renderOpponents(game, myIndex) {
         bubble.textContent = "хасагдлаа";
       } else if (hasPassed) {
         bubble.dataset.kind = "pass";
-        bubble.textContent = "пасс";
+        bubble.textContent = passLabel;
       } else if (player.lastAction?.kind === "play") {
         bubble.dataset.kind = "play";
         bubble.textContent = player.lastAction.label;
@@ -144,7 +145,7 @@ export function renderOpponents(game, myIndex) {
         badge.textContent = "ээлж";
       } else if (hasPassed) {
         badge.dataset.kind = "pass";
-        badge.textContent = "пасс";
+        badge.textContent = passLabel;
       } else {
         badge.dataset.kind = "cards";
         badge.textContent = `${count}`;
@@ -289,7 +290,7 @@ export function renderStatus(game, myIndex) {
     status.textContent = "таны ээлж";
   } else if (passedSet.has(myIndex)) {
     status.dataset.kind = "pass";
-    status.textContent = "пасс хийсэн";
+    status.textContent = `пасс · ${me.hand.length}`;
   } else {
     status.dataset.kind = "wait";
     status.textContent = "хүлээж байна";
