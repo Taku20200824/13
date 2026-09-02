@@ -1,151 +1,296 @@
-import * as fb from "./firebase.js";
-import { seatCount } from "./seats.js";
-import { escapeHtml } from "./text.js";
+// Тоглоомын цөм — DOM-оос ангид, цэвэр төлөвийн машин.
+// UI болон Firestore хоёулаа үүнийг ашиглана.
+import { dealHands, sortByValue, cardValue } from "./cards.js";
+import { detect, beats, rejectReason, COMBO_NAMES as COMBO_LABELS } from "./rules.js";
+import { settleRound, ELIMINATION_SCORE } from "./scoring.js";
 
-const $ = (id) => document.getElementById(id);
+export const PHASE = {
+  PLAYING: "playing",
+  ROUND_END: "roundEnd",
+  GAME_END: "gameEnd",
+};
 
-let user = null;
-let publicRoomsUnsub = null;
-let publicChatUnsub = null;
-let roomChatUnsub = null;
-let activeRoomChatCode = null;
-
-function joinByCode(code) {
-  const input = $("joinCode");
-  const form = $("joinForm");
-  if (!input || !form) return;
-  input.value = code;
-  form.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+/**
+ * @param {Array} playerDefs  суудал бүрийн тодорхойлолт (индекс = суудлын дугаар)
+ * @param {{seed?:number, starterRule?:string, absent?:number[]}} options
+ *        absent — хоосон суудлын дугаарууд. Тэдгээр нь хөзөр авахгүй,
+ *        ээлж ч авахгүй. Индексийг гулсуулахгүйн тулд массиваас
+ *        ХАСАХГҮЙ, зөвхөн идэвхгүй гэж тэмдэглэнэ.
+ */
+export function createGame(playerDefs, options = {}) {
+  const absent = new Set(options.absent ?? []);
+  const game = {
+    players: playerDefs.map((p, index) => ({
+      index,
+      id: p.id ?? `p${index}`,
+      name: p.name ?? `Тоглогч ${index + 1}`,
+      isBot: Boolean(p.isBot),
+      hand: [],
+      score: 0,
+      eliminated: absent.has(index),
+      absent: absent.has(index),
+      lastAction: null, // { kind: "play" | "pass", label }
+    })),
+    round: 0,
+    phase: PHASE.PLAYING,
+    turn: 0,
+    table: null, // сүүлд тавигдсан хослол
+    tableOwner: null, // түүнийг тавьсан тоглогчийн index
+    passed: new Set(),
+    startingCardId: null,
+    mustPlayStartingCard: false,
+    log: [],
+    played: [], // энэ үед тавигдсан бүх хөзрийн id — AI хөзөр тоолоход
+    lastRound: null,
+    gameWinner: null,
+    starterRule: options.starterRule ?? "previousWinner", // "lowest" | "previousWinner"
+    previousRoundWinner: null,
+  };
+  startRound(game, options.seed);
+  return game;
 }
 
-function renderPublicRooms(rooms) {
-  const list = $("publicRooms");
-  if (!list) return;
-  if (!rooms.length) {
-    list.innerHTML = '<li class="social-empty">Одоогоор public өрөө алга.</li>';
-    return;
+const activePlayers = (game) => game.players.filter((p) => !p.eliminated);
+
+export function startRound(game, seed) {
+  game.round += 1;
+  game.phase = PHASE.PLAYING;
+  game.table = null;
+  game.tableOwner = null;
+  game.passed = new Set();
+  game.lastRound = null;
+  game.played = [];
+  game.players.forEach((p) => (p.lastAction = null));
+
+  // Хоосон суудал үе бүрт идэвхгүй хэвээр
+  game.players.forEach((p) => {
+    if (p.absent) p.eliminated = true;
+  });
+
+  const active = activePlayers(game);
+  const hands = dealHands(active.length, 13, seed);
+  active.forEach((player, i) => {
+    player.hand = sortByValue(hands[i]);
+  });
+  game.players.filter((p) => p.eliminated).forEach((p) => (p.hand = []));
+
+  if (game.starterRule === "previousWinner" && game.previousRoundWinner !== null) {
+    const winner = game.players[game.previousRoundWinner];
+    if (winner && !winner.eliminated) {
+      game.turn = winner.index;
+      game.startingCardId = null;
+      game.mustPlayStartingCard = false;
+      log(game, `${winner.name} өмнөх үеийг түрүүлж дуусгасан тул эхэлнэ.`);
+      return game;
+    }
   }
-  list.innerHTML = "";
-  rooms.forEach((room) => {
-    const filled = seatCount(room.seats ?? []);
-    const host = room.seats?.find((seat) => seat?.uid === room.host) ?? room.seats?.find(Boolean);
-    const li = document.createElement("li");
-    li.className = "public-room";
-    li.innerHTML = `
-      <div>
-        <strong>${escapeHtml(host?.name ?? "Хост")}</strong>
-        <small>${filled}/4 хүн · ${room.allowBots ? "bot зөвшөөрнө" : "зөвхөн хүн"}</small>
-      </div>
-      <button class="btn btn--small" type="button" data-code="${escapeHtml(room.code)}">Орох</button>`;
-    li.querySelector("button")?.addEventListener("click", () => joinByCode(room.code));
-    list.appendChild(li);
-  });
-}
 
-function renderChat(listId, messages) {
-  const list = $(listId);
-  if (!list) return;
-  if (!messages.length) {
-    list.innerHTML = '<li class="social-empty">Chat хоосон байна.</li>';
-    return;
+  // Эхний үед хамгийн доод хөзөртэй тоглогч эхэлнэ.
+  // 4 хүнтэй үед энэ нь 3♦ бөгөөд тэр тоглогч хүссэн хүчинтэй хослолоороо гарна.
+  let lowest = null;
+  for (const player of active) {
+    for (const card of player.hand) {
+      if (!lowest || cardValue(card) < cardValue(lowest.card)) {
+        lowest = { card, index: player.index };
+      }
+    }
   }
-  list.innerHTML = "";
-  messages.forEach((message) => {
-    const li = document.createElement("li");
-    li.className = "chat-message";
-    li.innerHTML = `
-      <strong>${escapeHtml(message.name ?? "Зочин")}</strong>
-      <span>${escapeHtml(message.text ?? "")}</span>`;
-    list.appendChild(li);
-  });
-  list.scrollTop = list.scrollHeight;
+  game.turn = lowest.index;
+  game.startingCardId = lowest.card.id;
+  game.mustPlayStartingCard = false;
+  log(game, `${game.players[lowest.index].name} ${lowest.card.rank}${lowest.card.symbol}-тай тул эхэлнэ.`);
+  return game;
 }
 
-function startLobbySocial() {
-  stopLobbySocial();
-  if (!fb.online || !user) return;
+const log = (game, text) => {
+  game.log.push({ round: game.round, text });
+  if (game.log.length > 60) game.log.shift();
+};
 
-  publicRoomsUnsub = fb.watchPublicRooms(renderPublicRooms);
-  publicChatUnsub = fb.watchPublicChat((messages) => renderChat("publicChatList", messages));
-}
+/** Тухайн тоглогч энэ хөзрүүдийг тавьж болох эсэх. Болохгүй бол шалтгааныг буцаана. */
+export function validatePlay(game, playerIndex, cards) {
+  if (game.phase !== PHASE.PLAYING) return "Үе дууссан байна.";
+  if (game.turn !== playerIndex) return "Таны ээлж биш байна.";
+  if (!cards.length) return "Хөзөр сонгоно уу.";
 
-function stopLobbySocial() {
-  publicRoomsUnsub?.();
-  publicChatUnsub?.();
-  publicRoomsUnsub = null;
-  publicChatUnsub = null;
-}
+  const hand = game.players[playerIndex].hand;
+  if (!cards.every((c) => hand.some((h) => h.id === c.id))) return "Гарт байхгүй хөзөр байна.";
 
-/** Хэт хурдан бичихэд ойлгомжтой мэдэгдэл өгнө. */
-function showChatError(error, listId) {
-  if (error?.name === "ChatThrottleError") {
-    const list = $(listId);
-    if (!list) return;
-    const li = document.createElement("li");
-    li.className = "social-empty";
-    li.textContent = error.message;
-    list.appendChild(li);
-    setTimeout(() => li.remove(), 2000);
-    return;
+  if (game.mustPlayStartingCard && !cards.some((c) => c.id === game.startingCardId)) {
+    const card = hand.find((c) => c.id === game.startingCardId);
+    // Тухайн хөзөр гарт байхгүй бол шаардлага хамаарахгүй (өмнө нь
+    // энд card === undefined болж TypeError өгөх боломжтой байсан)
+    if (!card) return null;
+    return `Эхний нүүдэлд ${card.rank}${card.symbol} заавал орно.`;
   }
-  console.error(error);
+  return rejectReason(cards, game.table);
 }
 
-function wireSocialEvents() {
-  $("btnRefreshPublicRooms")?.addEventListener("click", () => {
-    stopLobbySocial();
-    startLobbySocial();
-  });
+export function play(game, playerIndex, cards) {
+  const error = validatePlay(game, playerIndex, cards);
+  if (error) return { ok: false, error };
 
-  $("publicChatForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const input = $("publicChatInput");
-    const text = input?.value ?? "";
-    if (!text.trim() || !user) return;
-    input.value = "";
-    await fb.sendPublicChat(user, text).catch((error) => showChatError(error, "publicChatList"));
-  });
+  const player = game.players[playerIndex];
+  const combo = detect(cards);
+  const ids = new Set(cards.map((c) => c.id));
+  player.hand = player.hand.filter((c) => !ids.has(c.id));
 
-  $("roomChatForm")?.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const input = $("roomChatInput");
-    const text = input?.value ?? "";
-    if (!text.trim() || !user || !activeRoomChatCode) return;
-    input.value = "";
-    await fb.sendRoomChat(activeRoomChatCode, user, text).catch((error) =>
-      showChatError(error, "roomChatList"),
-    );
+  game.table = combo;
+  game.tableOwner = playerIndex;
+  game.played = [...(game.played ?? []), ...combo.cards.map((c) => c.id)];
+  game.passed = new Set();
+  game.mustPlayStartingCard = false;
+  game.players.forEach((p) => {
+    if (p.index !== playerIndex) p.lastAction = p.lastAction?.kind === "pass" ? p.lastAction : null;
   });
+  player.lastAction = { kind: "play", label: COMBO_LABELS[combo.type] ?? combo.type, size: combo.size };
+  log(game, `${player.name}: ${combo.label}`);
+
+  if (player.hand.length === 0) {
+    endRound(game, playerIndex);
+    return { ok: true, combo, roundEnded: true };
+  }
+
+  advance(game);
+  return { ok: true, combo, roundEnded: false };
+}
+
+export function pass(game, playerIndex) {
+  if (game.phase !== PHASE.PLAYING) return { ok: false, error: "Үе дууссан байна." };
+  if (game.turn !== playerIndex) return { ok: false, error: "Таны ээлж биш байна." };
+  if (!game.table) return { ok: false, error: "Ширээ цэвэрхэн үед пасс хийж болохгүй." };
+
+  game.passed.add(playerIndex);
+  game.players[playerIndex].lastAction = { kind: "pass" };
+  log(game, `${game.players[playerIndex].name} пасс`);
+  advance(game);
+  return { ok: true };
 }
 
 /**
- * Идэвхтэй өрөөг main.js илэрхий хэлж өгнө.
- * Өмнө нь `#roomCode` элементийн текстийг MutationObserver болон
- * 1.2 секунд тутмын setInterval-аар тагнадаг байсан — найдваргүй, үрэлгэн.
+ * Ээлжийг дараагийн тоглогч руу шилжүүлнэ.
+ * Ширээ цэвэрлэгдэх нөхцөл: ширээ эзэмшигчээс бусад бүх идэвхтэй тоглогч пасс хийсэн.
+ * ЧУХАЛ: цэвэрлэгдсэн тохиолдолд ээлж ширээ эзэмшигчид ӨӨРТ нь үлдэнэ.
  */
-export function setActiveRoom(code) {
-  if (activeRoomChatCode === code) return;
-  roomChatUnsub?.();
-  roomChatUnsub = null;
-  activeRoomChatCode = code ?? null;
-  const list = $("roomChatList");
-  if (list) list.innerHTML = '<li class="social-empty">Мессеж алга.</li>';
-  if (!code || !fb.online || !user) return;
-  roomChatUnsub = fb.watchRoomChat(code, (messages) => renderChat("roomChatList", messages));
+function advance(game) {
+  const active = activePlayers(game);
+
+  if (game.table !== null) {
+    const others = active.filter((p) => p.index !== game.tableOwner);
+    const allPassed = others.every((p) => game.passed.has(p.index));
+    if (allPassed) {
+      game.turn = game.tableOwner;
+      game.table = null;
+      game.tableOwner = null;
+      game.passed = new Set();
+      game.players.forEach((p) => {
+        if (p.lastAction?.kind === "pass") p.lastAction = null;
+      });
+      log(game, `${game.players[game.turn].name} ширээг авч, шинээр эхэлнэ.`);
+      return;
+    }
+  }
+
+  let next = game.turn;
+  for (let step = 0; step < game.players.length; step += 1) {
+    next = (next + 1) % game.players.length;
+    const player = game.players[next];
+    if (player.eliminated) continue;
+    if (game.passed.has(next)) continue;
+    game.turn = next;
+    return;
+  }
+  game.turn = game.tableOwner ?? game.turn;
 }
 
-async function bootSocial() {
-  wireSocialEvents();
-  if (!fb.online) return;
-  await fb.initFirebase();
-  fb.onAuth((nextUser) => {
-    user = nextUser;
-    roomChatUnsub?.();
-    roomChatUnsub = null;
-    activeRoomChatCode = null;
-    if (user) startLobbySocial();
-    else stopLobbySocial();
+function endRound(game, winnerIndex) {
+  const winner = game.players[winnerIndex];
+  const outcome = settleRound(
+    game.players.map((p) => ({ ...p, id: p.index })),
+    winnerIndex,
+  );
+
+  outcome.results.forEach((r) => {
+    game.players[r.id].score = r.scoreAfter;
   });
+  outcome.eliminated.forEach((index) => {
+    game.players[index].eliminated = true;
+    log(game, `${game.players[index].name} ${game.players[index].score} оноотой болж хасагдлаа.`);
+  });
+
+  game.previousRoundWinner = winnerIndex;
+  game.lastRound = outcome;
+  game.phase = outcome.gameWinner ? PHASE.GAME_END : PHASE.ROUND_END;
+  game.gameWinner = outcome.gameWinner ? game.players[outcome.gameWinner.id] : null;
+  log(game, `${winner.name} үеийг түрүүлж дуусгалаа.`);
+  if (game.gameWinner) log(game, `🏆 ${game.gameWinner.name} тоглоомын ялагч боллоо!`);
 }
 
-bootSocial().catch(console.error);
+export function nextRound(game, seed) {
+  if (game.phase !== PHASE.ROUND_END) return game;
+  return startRound(game, seed);
+}
+
+/* ── Firestore-д хадгалах / буцааж унших ────────── */
+
+export function serializeGame(game) {
+  return {
+    players: game.players.map((p) => ({
+      index: p.index,
+      id: p.id,
+      name: p.name,
+      isBot: p.isBot,
+      handCount: p.hand.length,
+      score: p.score,
+      eliminated: p.eliminated,
+      absent: Boolean(p.absent),
+      lastAction: p.lastAction ?? null,
+    })),
+    round: game.round,
+    phase: game.phase,
+    turn: game.turn,
+    table: game.table,
+    tableOwner: game.tableOwner,
+    passed: [...game.passed],
+    startingCardId: game.startingCardId,
+    mustPlayStartingCard: game.mustPlayStartingCard,
+    log: game.log.slice(-20),
+    played: game.played ?? [],
+    lastRound: game.lastRound,
+    gameWinner: game.gameWinner ? { id: game.gameWinner.id, name: game.gameWinner.name } : null,
+    starterRule: game.starterRule,
+    previousRoundWinner: game.previousRoundWinner,
+  };
+}
+
+/**
+ * hands: { [playerIndex]: card[] } — зөвхөн өөрийн гар бодитой.
+ * Бусдын гарыг тоо нь таарсан "нүүр буруу" орлуулагчаар дүүргэнэ:
+ * ээлж тооцох, оноо бодоход зөвхөн тоо нь л хэрэгтэй.
+ */
+export function deserializeGame(data, hands = {}) {
+  const hidden = (count, index) =>
+    Array.from({ length: count }, (_, i) => ({ id: `hidden-${index}-${i}`, hidden: true }));
+  return {
+    players: data.players.map((p) => ({
+      ...p,
+      hand: hands[p.index] ?? hidden(p.handCount ?? 0, p.index),
+    })),
+    round: data.round,
+    phase: data.phase,
+    turn: data.turn,
+    table: data.table ?? null,
+    tableOwner: data.tableOwner ?? null,
+    passed: new Set(data.passed ?? []),
+    startingCardId: data.startingCardId ?? null,
+    mustPlayStartingCard: Boolean(data.mustPlayStartingCard),
+    log: data.log ?? [],
+    played: data.played ?? [],
+    lastRound: data.lastRound ?? null,
+    gameWinner: data.gameWinner ?? null,
+    starterRule: data.starterRule ?? "previousWinner",
+    previousRoundWinner: data.previousRoundWinner ?? null,
+  };
+}
+
+export { ELIMINATION_SCORE, beats, detect };
