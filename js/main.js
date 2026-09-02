@@ -671,7 +671,9 @@ async function runBotChain() {
     if (!state || state.phase !== PHASE.PLAYING) return;
 
     const seat = app.room.seats?.[state.turn];
-    if (!seat?.isBot) return;
+    // Bot эсвэл гарсан (хоосон) суудлыг host гүйцээж тоглоно — эс бөгөөс
+    // гарсан хүний ээлж дээр тоглоом царцна. Идэвхтэй хүн байвал хүлээнэ.
+    if (seat && !seat.isBot) return;
 
     await new Promise((r) => setTimeout(r, 650));
     if (!app.roomCode || !app.room || !isHost()) return;
@@ -698,7 +700,7 @@ async function runBotChain() {
         expectedVersion: app.room?.stateVersion,
         state: next,
         hand: full.players[turn].hand,
-        uid: seat.uid,
+        uid: seat?.uid ?? full.players[turn]?.id,
       });
       if (!committed.ok) {
         // Хүн бидний өмнө нүүсэн байна — snapshot-оо хүлээгээд зогсоно

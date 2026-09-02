@@ -321,7 +321,16 @@ export async function leaveRoom(code, uid) {
       const data = snap.data();
       const seats = deserializeSeats(data.seats);
       const index = seatIndexOf(seats, uid);
-      if (index !== -1) seats[index] = null;
+      const playing = data.status === "playing";
+
+      // Тоглоом явж байхад гарвал суудлыг УСТГАХГҮЙ, BOT болгоно. Өмнө нь
+      // хоосолдог байсан тул гарсан хүний (ялангуяа host-ын) ээлж дээр
+      // хэн ч нүүдэл хийхгүй болж тоглоом мөнхөд царцдаг байв. uid-г хэвээр
+      // үлдээснээр game.state-ийн тоглогч (id) таарч, шинэ host түүний
+      // үлдсэн хөзрийг bot дүрмээр гүйцээж тоглоно.
+      if (index !== -1) {
+        seats[index] = playing ? { ...seats[index], isBot: true } : null;
+      }
 
       // Хүн үлдээгүй бол өрөөг хаана (bot дангаараа өрөө эзэлж үлдэхгүй)
       if (humanSeats(seats).length === 0) {
