@@ -40,6 +40,7 @@ export function createGame(playerDefs, options = {}) {
     startingCardId: null,
     mustPlayStartingCard: false,
     log: [],
+    played: [], // энэ үед тавигдсан бүх хөзрийн id — AI хөзөр тоолоход
     lastRound: null,
     gameWinner: null,
     starterRule: options.starterRule ?? "previousWinner", // "lowest" | "previousWinner"
@@ -58,6 +59,7 @@ export function startRound(game, seed) {
   game.tableOwner = null;
   game.passed = new Set();
   game.lastRound = null;
+  game.played = [];
   game.players.forEach((p) => (p.lastAction = null));
 
   // Хоосон суудал үе бүрт идэвхгүй хэвээр
@@ -132,6 +134,7 @@ export function play(game, playerIndex, cards) {
 
   game.table = combo;
   game.tableOwner = playerIndex;
+  game.played = [...(game.played ?? []), ...combo.cards.map((c) => c.id)];
   game.passed = new Set();
   game.mustPlayStartingCard = false;
   game.players.forEach((p) => {
@@ -249,6 +252,7 @@ export function serializeGame(game) {
     startingCardId: game.startingCardId,
     mustPlayStartingCard: game.mustPlayStartingCard,
     log: game.log.slice(-20),
+    played: game.played ?? [],
     lastRound: game.lastRound,
     gameWinner: game.gameWinner ? { id: game.gameWinner.id, name: game.gameWinner.name } : null,
     starterRule: game.starterRule,
@@ -278,6 +282,7 @@ export function deserializeGame(data, hands = {}) {
     startingCardId: data.startingCardId ?? null,
     mustPlayStartingCard: Boolean(data.mustPlayStartingCard),
     log: data.log ?? [],
+    played: data.played ?? [],
     lastRound: data.lastRound ?? null,
     gameWinner: data.gameWinner ?? null,
     starterRule: data.starterRule ?? "previousWinner",

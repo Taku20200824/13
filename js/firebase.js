@@ -198,6 +198,7 @@ export async function createRoom(user, options = {}) {
       status: "waiting",
       visibility: options.visibility === "public" ? "public" : "private",
       allowBots: options.allowBots ?? true,
+      botLevel: options.botLevel === "normal" ? "normal" : "hard",
       seats: serializeSeats(seats),
       members: [user.uid],
       state: null,

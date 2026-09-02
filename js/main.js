@@ -9,7 +9,7 @@ import {
   deserializeGame,
   PHASE,
 } from "./game.js";
-import { chooseMove } from "./bot.js";
+import { chooseMove, DIFFICULTY } from "./bot.js";
 import { initHandOrder, isDragging } from "./hand-order.js";
 import { escapeHtml } from "./text.js";
 import { startDashboard, stopDashboard, setDashboardContext } from "./dashboard.js";
@@ -60,6 +60,7 @@ const app = {
   hostTimer: null,
   recordedGameId: null,
   handOrder: [], // хэрэглэгчийн гараар өөрчилсөн дараалал (хөзрийн id)
+  difficulty: DIFFICULTY.HARD,
   stats: { rounds: 0, roundWins: 0, points: 0 },
 };
 
@@ -246,6 +247,7 @@ function startLocalGame() {
   app.recordedGameId = null;
   app.room = null;
   const bots = BOT_NAMES.slice(0, 3).map((name) => ({ name, isBot: true }));
+  app.difficulty = botLevel();
   app.game = createGame([{ name: app.user?.displayName ?? "Та", isBot: false }, ...bots]);
   app.selected.clear();
   showScreen("game");
@@ -262,7 +264,7 @@ function scheduleBot() {
 
   app.botTimer = setTimeout(() => {
     const index = game.turn;
-    const move = chooseMove(game, index);
+    const move = chooseMove(game, index, { difficulty: app.difficulty });
     const result = move ? play(game, index, move.cards) : pass(game, index);
     if (!result.ok) {
       // хамгаалалт: гацахаас сэргийлж пасс хийнэ
@@ -278,6 +280,11 @@ function scheduleBot() {
 
 const isHost = () => app.room && app.user && app.room.host === app.user.uid;
 
+const botLevel = () =>
+  document.querySelector('input[name="botLevel"]:checked')?.value === "normal"
+    ? DIFFICULTY.NORMAL
+    : DIFFICULTY.HARD;
+
 const roomVisibility = () =>
   document.querySelector('input[name="roomVisibility"]:checked')?.value === "private"
     ? "private"
@@ -289,6 +296,7 @@ async function handleCreateRoom() {
     const code = await fb.createRoom(app.user, {
       allowBots: true,
       visibility: roomVisibility(),
+      botLevel: botLevel(),
     });
     enterRoom(code);
   } catch (error) {
@@ -622,7 +630,7 @@ async function runBotChain() {
       });
       if (full.phase !== PHASE.PLAYING || full.turn !== turn) return;
 
-      const move = chooseMove(full, turn);
+      const move = chooseMove(full, turn, { difficulty: app.room?.botLevel ?? DIFFICULTY.HARD });
       const result = move ? play(full, turn, move.cards) : pass(full, turn);
       if (!result.ok && !pass(full, turn).ok) return; // гацахаас сэргийлнэ
 
