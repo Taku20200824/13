@@ -10,7 +10,7 @@ import {
   PHASE,
 } from "./game.js";
 import { chooseMove } from "./bot.js";
-import { initHandOrder } from "./hand-order.js";
+import { initHandOrder, isDragging } from "./hand-order.js";
 import { escapeHtml } from "./text.js";
 import { startDashboard, stopDashboard, setDashboardContext } from "./dashboard.js";
 import { setActiveRoom } from "./social.js";
@@ -36,6 +36,7 @@ import {
   renderPile,
   renderHand,
   renderSelection,
+  renderPlayPreview,
   renderStatus,
   renderLog,
   setBanner,
@@ -172,14 +173,10 @@ function wireEvents() {
   });
 
   // Хөзрөө ямар ч үед чирж эрэмбэлнэ — ээлж авахгүй, нүүдэл тооцогдохгүй
-  initHandOrder(
-    $("hand"),
-    () => [...$("hand").querySelectorAll(".card")].map((c) => c.dataset.id),
-    (ids) => {
-      app.handOrder = ids;
-      draw();
-    },
-  );
+  initHandOrder($("hand"), (ids) => {
+    app.handOrder = ids;
+    draw();
+  });
 }
 
 function renderAccount() {
@@ -752,6 +749,8 @@ function autoSort(cards) {
 function draw() {
   const game = app.game;
   if (!game) return;
+  // Хөзөр чирэгдэж байх үед гарыг дахин барихгүй — чирэлт тасрахаас сэргийлнэ
+  if (isDragging()) return;
   const me = game.players[app.myIndex];
   const view = {
     ...game,
@@ -763,6 +762,7 @@ function draw() {
   renderPile(view);
   renderHand(view, app.myIndex, app.selected, app.hintIds);
   renderSelection(view, app.myIndex, app.selected);
+  renderPlayPreview(view, app.myIndex, app.selected);
   renderStatus(view, app.myIndex);
   renderLog(view);
 

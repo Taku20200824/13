@@ -275,6 +275,14 @@
             <div class="selection" id="selection">Хөзөр сонгоно уу</div>
           </div>
 
+          <!-- Гаргах хөзөр: зөвхөн сонголт байх үед харагдана.
+               Хоосон үед огт зай эзлэхгүй тул товчнууд дэлгэцээс гарахгүй. -->
+          <div class="play-preview" id="playPreview" hidden aria-live="polite">
+            <span class="play-preview__label">Гаргах</span>
+            <div class="play-preview__cards" id="playPreviewCards"></div>
+            <span class="play-preview__combo" id="playPreviewCombo"></span>
+          </div>
+
           <div class="hand" id="hand" aria-label="Таны хөзрүүд"></div>
 
           <div class="controls">

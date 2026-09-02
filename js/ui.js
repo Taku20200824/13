@@ -201,10 +201,45 @@ export function renderHand(game, myIndex, selected, hintIds = new Set()) {
     if (selected.has(card.id)) node.setAttribute("data-selected", "");
     if (hintIds.has(card.id)) node.setAttribute("data-hint", "");
     if (!myTurn) node.setAttribute("data-locked", "");
-    node.draggable = true;
+    // draggable-ыг ЗААВАЛ унтраана: үгүй бол Chrome өөрийн native drag
+    // эхлүүлж, pointer урсгалыг тасалдаг (хулганаар зөөх ажиллахгүй болно)
+    node.draggable = false;
     node.setAttribute("aria-disabled", String(!myTurn));
     wrap.appendChild(node);
   });
+}
+
+/** Сонгосон хөзрүүдийг жижигрүүлж харуулна. Сонголтгүй бол огт харагдахгүй. */
+export function renderPlayPreview(game, myIndex, selected) {
+  const wrap = $("playPreview");
+  const cards = $("playPreviewCards");
+  const combo = $("playPreviewCombo");
+  const me = game.players[myIndex];
+  const chosen = me.hand.filter((c) => selected.has(c.id));
+
+  if (chosen.length === 0) {
+    wrap.hidden = true;
+    cards.innerHTML = "";
+    combo.textContent = "";
+    return;
+  }
+
+  wrap.hidden = false;
+  cards.innerHTML = "";
+  chosen.forEach((card) => {
+    const node = cardNode(card);
+    node.classList.add("card--mini");
+    cards.appendChild(node);
+  });
+
+  const found = detect(chosen);
+  if (found) {
+    combo.textContent = found.label.split(" (")[0];
+    combo.dataset.state = "ok";
+  } else {
+    combo.textContent = "хослол биш";
+    combo.dataset.state = "bad";
+  }
 }
 
 export function renderSelection(game, myIndex, selected) {
@@ -215,9 +250,12 @@ export function renderSelection(game, myIndex, selected) {
   node.removeAttribute("data-invalid");
 
   if (cards.length === 0) {
+    node.hidden = false;
     node.textContent = "Хөзөр сонгоно уу";
     return;
   }
+  // Сонголт байгаа үед preview самбар мэдээллийг харуулна — давхардуулахгүй
+  node.hidden = true;
   const combo = detect(cards);
   if (!combo) {
     node.textContent = `${cards.length} хөзөр · хослол биш`;

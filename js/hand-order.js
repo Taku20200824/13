@@ -1,100 +1,145 @@
-// Гараа чирж эрэмбэлэх.
+// Гараа чирж эрэмбэлэх — хулгана, хуруу, цайвар үзэг бүгдэд.
 //
-// Хуучин хувилбар (hand-enhancements.js) нь DOM-ын зангилаануудыг шууд
-// зөөж, MutationObserver-оор дахин тулгадаг байсан. Улмаас:
-//   • тоглоомын төлөв ба дэлгэц дээрх дараалал хоёр салж,
-//   • хадгалсан дараалал дараагийн үе рүү шилжиж,
-//   • ээлж биш үед хөзөр `disabled` болдог тул зөөж чаддаггүй байв.
+// HTML5 drag-and-drop (dragstart/drop) нь ХҮРЭЛТЭЭР АЖИЛЛАДАГГҮЙ тул
+// утсан дээр хөзрөө зөөх боломжгүй байсан. Одоо Pointer Events
+// ашиглаж байгаа — нэг код бүх төхөөрөмжид ажиллана.
 //
-// Одоо дараалал нь програмын төлөвд (app.handOrder) байрлана —
-// цорын ганц эх сурвалж. Энэ модуль зөвхөн чирэх үйлдлийг барьж
-// авч, шинэ дарааллыг буцаана.
+// Товшилт ба чирэлтийг зайгаар нь ялгана: DRAG_THRESHOLD-оос бага
+// хөдөлбөл товшилт (хөзөр сонгох), их бол чирэлт.
+
+const DRAG_THRESHOLD = 8; // px
 
 let handEl = null;
 let onReorder = null;
-let getOrder = null;
-let draggedId = null;
 
-const cardsInDom = () => [...handEl.querySelectorAll(".card")].map((c) => c.dataset.id);
+let pointerId = null;
+let startX = 0;
+let startY = 0;
+let dragging = false;
+let node = null;
+let justDragged = false;
 
-const clearMarks = () => {
-  handEl?.querySelectorAll(".card").forEach((card) => {
-    card.removeAttribute("data-drop-left");
-    card.removeAttribute("data-drop-right");
-    card.removeAttribute("data-dragging");
-  });
-};
+const cardsInDom = () => [...handEl.querySelectorAll(".card")];
+const idsInDom = () => cardsInDom().map((c) => c.dataset.id);
+
+function clearMarks() {
+  if (!handEl) return;
+  handEl.removeAttribute("data-reordering");
+  handEl.querySelectorAll(".card").forEach((card) => card.removeAttribute("data-dragging"));
+}
+
+/** Заасан цэгийн доорх хөзрийг олно (хуруу хөзрийн гадуур гарсан ч ойрыг нь сонгоно). */
+function cardAt(x) {
+  const cards = cardsInDom();
+  let best = null;
+  let bestDist = Infinity;
+  for (const card of cards) {
+    if (card === node) continue;
+    const rect = card.getBoundingClientRect();
+    const center = rect.left + rect.width / 2;
+    const dist = Math.abs(x - center);
+    if (dist < bestDist) {
+      bestDist = dist;
+      best = { card, after: x > center };
+    }
+  }
+  return best;
+}
+
+function onPointerDown(event) {
+  if (event.button !== undefined && event.button !== 0) return; // зөвхөн зүүн товч
+  const card = event.target.closest(".card");
+  if (!card || !handEl.contains(card)) return;
+
+  pointerId = event.pointerId;
+  node = card;
+  startX = event.clientX;
+  startY = event.clientY;
+  dragging = false;
+  justDragged = false;
+}
+
+function onPointerMove(event) {
+  if (pointerId === null || event.pointerId !== pointerId || !node) return;
+
+  const dx = event.clientX - startX;
+  const dy = event.clientY - startY;
+
+  if (!dragging) {
+    // Босго давахаас өмнө юу ч хийхгүй — товшилт хэвээр үлдэнэ.
+    // Босоо чиглэлд илүү хөдөлсөн бол хуудсаа гүйлгэж байна гэж үзнэ.
+    if (Math.abs(dx) < DRAG_THRESHOLD || Math.abs(dy) > Math.abs(dx)) return;
+    dragging = true;
+    handEl.setAttribute("data-reordering", "");
+    node.setAttribute("data-dragging", "");
+    try {
+      handEl.setPointerCapture(pointerId);
+    } catch {
+      /* зарим browser дэмжихгүй — хамаагүй */
+    }
+  }
+
+  event.preventDefault();
+
+  // Дахин зураглал болж зангилаа салсан бол чирэлтийг зогсооно
+  if (!node.isConnected) return finish(false);
+
+  const target = cardAt(event.clientX);
+  if (!target) return;
+  const ref = target.after ? target.card.nextSibling : target.card;
+  if (ref !== node) handEl.insertBefore(node, ref);
+}
+
+function onPointerUp(event) {
+  if (pointerId === null || event.pointerId !== pointerId) return;
+  finish(dragging);
+}
+
+function finish(commit) {
+  if (commit && handEl) {
+    justDragged = true;
+    const ids = idsInDom();
+    clearMarks();
+    onReorder?.(ids);
+  } else {
+    clearMarks();
+  }
+  try {
+    if (pointerId !== null) handEl?.releasePointerCapture(pointerId);
+  } catch {
+    /* алгасна */
+  }
+  pointerId = null;
+  node = null;
+  dragging = false;
+}
 
 /**
- * @param {HTMLElement} hand   #hand элемент
- * @param {() => string[]} readOrder  одоогийн дэлгэц дээрх дараалал
+ * @param {HTMLElement} hand  #hand элемент
  * @param {(ids: string[]) => void} write  шинэ дарааллыг хүлээн авах
  */
-export function initHandOrder(hand, readOrder, write) {
+export function initHandOrder(hand, write) {
   handEl = hand;
-  getOrder = readOrder;
   onReorder = write;
   if (!handEl) return;
 
-  handEl.addEventListener("dragstart", (event) => {
-    const card = event.target.closest(".card");
-    if (!card) return;
-    draggedId = card.dataset.id;
-    card.setAttribute("data-dragging", "");
-    event.dataTransfer.effectAllowed = "move";
-    // Firefox drag эхлэхийн тулд ямар нэг өгөгдөл шаардана
-    try {
-      event.dataTransfer.setData("text/plain", draggedId);
-    } catch {
-      /* алгасна */
-    }
-  });
+  handEl.addEventListener("pointerdown", onPointerDown);
+  handEl.addEventListener("pointermove", onPointerMove, { passive: false });
+  handEl.addEventListener("pointerup", onPointerUp);
+  handEl.addEventListener("pointercancel", () => finish(false));
 
-  handEl.addEventListener("dragover", (event) => {
-    if (!draggedId) return;
-    event.preventDefault();
-    event.dataTransfer.dropEffect = "move";
-    const target = event.target.closest(".card");
-    if (!target || target.dataset.id === draggedId) return;
-    const rect = target.getBoundingClientRect();
-    const right = event.clientX > rect.left + rect.width / 2;
-    handEl.querySelectorAll(".card").forEach((c) => {
-      c.removeAttribute("data-drop-left");
-      c.removeAttribute("data-drop-right");
-    });
-    target.setAttribute(right ? "data-drop-right" : "data-drop-left", "");
-  });
-
-  handEl.addEventListener("drop", (event) => {
-    event.preventDefault();
-    const target = event.target.closest(".card");
-    if (draggedId && target && target.dataset.id !== draggedId) {
-      const rect = target.getBoundingClientRect();
-      const after = event.clientX > rect.left + rect.width / 2;
-      applyMove(draggedId, target.dataset.id, after);
-    }
-    draggedId = null;
-    clearMarks();
-  });
-
-  handEl.addEventListener("dragend", () => {
-    draggedId = null;
-    clearMarks();
-  });
-
-  handEl.addEventListener("dragleave", (event) => {
-    if (event.target === handEl) clearMarks();
-  });
+  // Чирсний дараах товшилтыг залгина — хөзөр санамсаргүй сонгогдохгүй
+  handEl.addEventListener(
+    "click",
+    (event) => {
+      if (!justDragged) return;
+      justDragged = false;
+      event.stopImmediatePropagation();
+      event.preventDefault();
+    },
+    true,
+  );
 }
 
-function applyMove(movedId, targetId, after) {
-  const ids = getOrder?.() ?? cardsInDom();
-  const without = ids.filter((id) => id !== movedId);
-  const at = without.indexOf(targetId);
-  if (at === -1) return;
-  without.splice(after ? at + 1 : at, 0, movedId);
-  onReorder?.(without);
-}
-
-/** Гар нь ямар ч үед — өрсөлдөгчийн ээлжид ч — зөөгдөх боломжтой эсэх. */
-export const isReorderable = () => Boolean(handEl);
+/** Чирэлт яг одоо явагдаж байна уу (зураглалыг түр хойшлуулахад хэрэгтэй). */
+export const isDragging = () => dragging;
