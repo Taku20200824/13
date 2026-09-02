@@ -1,8 +1,7 @@
 // DOM зураглал — тоглоомын логикоос ангид.
 import { detect } from "./rules.js";
 import { escapeHtml as escapeText } from "./text.js";
-import { pointsLabel } from "./scoring.js";
-import { ELIMINATION_SCORE } from "./scoring.js";
+import { pointsLabel, ELIMINATION_SCORE } from "./scoring.js";
 
 export const $ = (id) => document.getElementById(id);
 
@@ -269,14 +268,7 @@ export function renderSelection(game, myIndex, selected) {
   }
   // Сонголт байгаа үед preview самбар мэдээллийг харуулна — давхардуулахгүй
   node.hidden = true;
-  const combo = detect(cards);
-  if (!combo) {
-    node.textContent = `${cards.length} хөзөр · хослол биш`;
-    node.setAttribute("data-invalid", "");
-    return;
-  }
-  node.textContent = combo.label;
-  node.setAttribute("data-valid", "");
+  return;
 }
 
 export function renderStatus(game, myIndex) {
@@ -349,7 +341,7 @@ export function roundResultTable(outcome, players) {
       if (outcome.eliminated.includes(r.id)) row.setAttribute("data-out", "");
       const eliminated = outcome.eliminated.includes(r.id);
       row.innerHTML = `
-        <td>${players[r.id]?.name ?? r.name}${eliminated ? " · хасагдлаа" : ""}</td>
+        <td>${escapeText(players[r.id]?.name ?? r.name)}${eliminated ? " · хасагдлаа" : ""}</td>
         <td>${r.cardsLeft}</td>
         <td class="result-calc">${pointsLabel(r.cardsLeft)}</td>
         <td>${r.scoreAfter}</td>`;

@@ -57,7 +57,7 @@ python3 -m http.server 5173
 Тест:
 
 ```bash
-npm test             # 38 тест
+npm test             # 129 тест
 ```
 
 ---

@@ -9,7 +9,7 @@
 // төлөвлөгөөг хэр эвдэж байна вэ" гэж үнэлнэ.
 
 import { enumeratePlays, detect, beats, CATEGORY } from "./rules.js";
-import { cardValue, rankOrder, makeDeck, STRAIGHT_RANKS, RANKS } from "./cards.js";
+import { cardValue, rankOrder, makeDeck, STRAIGHT_RANKS } from "./cards.js";
 
 export const DIFFICULTY = { NORMAL: "normal", HARD: "hard" };
 

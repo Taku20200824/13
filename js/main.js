@@ -17,6 +17,7 @@ import { setActiveRoom } from "./social.js";
 import { enumeratePlays } from "./rules.js";
 import * as fb from "./firebase.js";
 import {
+  seatsMatchState,
   SEAT_COUNT,
   emptySeats,
   makeBotSeat,
@@ -24,7 +25,6 @@ import {
   seatCount,
   humanSeats,
   occupiedSeats,
-  seatsMatchState,
 } from "./seats.js";
 import {
   $,
@@ -91,7 +91,14 @@ async function boot() {
 
   fb.onAuth(async (user) => {
     if (!user) {
+      // Сонсогчид амьд үлдвэл snapshot дотор app.user.uid унших үед
+      // TypeError өгнө — тиймээс бүгдийг цэвэрлэнэ.
+      clearSubscriptions();
+      stopHostWatchdog();
       app.user = null;
+      app.room = null;
+      app.roomCode = null;
+      app.game = null;
       stopDashboard();
       showScreen("auth");
       return;
@@ -198,7 +205,12 @@ function renderAccount() {
   const avatar = document.createElement("span");
   avatar.className = "avatar";
   if (app.user.photoURL) {
-    avatar.innerHTML = `<img src="${app.user.photoURL}" alt="" referrerpolicy="no-referrer" />`;
+    // Хаягийг markup руу оруулахгүй — DOM-оор тавина
+    const img = document.createElement("img");
+    img.src = app.user.photoURL;
+    img.alt = "";
+    img.referrerPolicy = "no-referrer";
+    avatar.appendChild(img);
   } else {
     avatar.textContent = (app.user.displayName ?? "?").slice(0, 1).toUpperCase();
   }
@@ -359,6 +371,7 @@ function enterRoom(code) {
         exitToLobby();
         return;
       }
+      if (!app.user) return; // нэвтрэлт тасарсан — snapshot-ыг үл тоомсорлоно
       app.room = room;
 
       // Суудлын дугаар нь тогтвортой — массивын байрлал биш, seatIndex
@@ -417,18 +430,29 @@ function stopHostWatchdog() {
 }
 
 function resubscribeHand() {
-  if (handUnsub) {
-    handUnsub();
-    handUnsub = null;
-  }
+  stopHandWatch();
   app.myHand = null;
   if (!app.roomCode || app.myIndex < 0) return;
   const index = app.myIndex;
-  handUnsub = fb.watchHand(app.roomCode, index, (cards) => {
-    if (app.myIndex !== index) return; // хоцорсон дуудлагыг үл тоомсорлоно
-    app.myHand = cards;
-    if (app.room) rebuild(app.room);
-  });
+  handUnsub = fb.watchHand(
+    app.roomCode,
+    index,
+    (cards) => {
+      if (app.myIndex !== index) return; // хоцорсон дуудлагыг үл тоомсорлоно
+      app.myHand = cards;
+      if (app.room) rebuild(app.room);
+    },
+    () => {
+      // Тоглоом эхлээгүй байхад баримт үүсээгүй тул эрх татгалзаж болно.
+      // Сонсогчийг цэвэрлээд дараагийн snapshot дээр дахин холбогдоно.
+      handUnsub = null;
+      if (app.roomCode && app.myIndex === index) {
+        setTimeout(() => {
+          if (!handUnsub && app.roomCode && app.myIndex === index) resubscribeHand();
+        }, 1500);
+      }
+    },
+  );
 }
 
 function renderRoom(room) {
@@ -572,11 +596,8 @@ async function writeHandsFor(game, seats) {
 /** Хост: гарыг тус тусад нь бичээд, нийтийн төлөвийг шинэчилнэ. */
 async function publishGame(game, seats, status) {
   await writeHandsFor(game, seats);
-  await fb.updateRoom(app.roomCode, {
-    status,
-    state: serializeGame(game),
-    hostSeenAt: Date.now(),
-  });
+  const version = await fb.publishState(app.roomCode, { state: serializeGame(game), status });
+  if (app.room) app.room = { ...app.room, stateVersion: version };
 }
 
 async function handleLeaveRoom() {
@@ -604,14 +625,23 @@ function onRoomState(room) {
 function rebuild(room) {
   if (!room?.state || !Array.isArray(app.myHand)) return;
 
-  // Суудал ба төлөв зөрсөн бол индекс буруу заасан гэсэн үг — бүү зур
-  if (!seatsMatchState(room.seats, room.state)) {
-    setBanner("Суудал шинэчлэгдэж байна…");
-  }
 
   app.game = deserializeGame(room.state, { [app.myIndex]: app.myHand });
+
+  // Шинэ үе эхэлсэн бол өмнөх үеийн дүнгийн цонхыг хаана — өмнө нь
+  // host дараагийн үеийг эхлүүлсэн ч бусдын дэлгэц дээр хуучин цонх
+  // хэвээр үлдэж, ард нь тоглоом явдаг байсан.
+  if (app.game.phase === PHASE.PLAYING && lastShownRound !== app.game.round) closeModal();
+
   showScreen("game");
   draw();
+
+  // Суудал ба төлөв зөрсөн бол хэн нэг нь тоглоом дундаас гарсан гэсэн үг.
+  // Зурахыг зогсоовол бүгд гацна — тиймээс зөвхөн мэдэгдэнэ (draw-ийн ДАРАА,
+  // үгүй бол banner тэр даруй дарагдана).
+  if (!seatsMatchState(room.seats, room.state)) {
+    setBanner("Тоглогч өрөөнөөс гарсан байна.", "error");
+  }
 
   if (app.game.phase === PHASE.PLAYING && isHost()) scheduleBotChain();
   if (app.game.phase !== PHASE.PLAYING) handleRoundEnd();
@@ -633,6 +663,8 @@ function scheduleBotChain() {
 }
 
 async function runBotChain() {
+  // Хязгаарт хүрвэл snapshot хүлээхгүй — өөрөө дахин эхэлнэ.
+  // Өмнө нь зөвхөн bot-той үлдсэн тоглоом 40 нүүдлийн дараа царцдаг байв.
   for (let guard = 0; guard < 40; guard += 1) {
     if (!app.roomCode || !app.room || !isHost()) return;
     const state = app.room.state;
@@ -681,6 +713,12 @@ async function runBotChain() {
 
     if (next.phase !== PHASE.PLAYING) return;
   }
+
+  // Хязгаарт хүрсэн ч тоглоом үргэлжилж байвал гинжийг сэргээнэ
+  setTimeout(() => {
+    botRunning = false;
+    if (app.room?.state?.phase === PHASE.PLAYING && isHost()) scheduleBotChain();
+  }, 200);
 }
 
 /* ══════════ Нүүдэл ══════════ */
@@ -730,7 +768,10 @@ async function commitMove() {
       hand: app.game.players[app.myIndex].hand,
       uid: app.user.uid,
     });
-    if (!result.ok) {
+    if (result.ok) {
+      // Хувилбараа шинэчилнэ — snapshot ирэхээс өмнө дахин нүүвэл "stale" болохгүй
+      if (app.room) app.room = { ...app.room, stateVersion: result.version };
+    } else {
       // Өөр хэн нэг нь бидний өмнө бичсэн — сүүлийн байдал руу буцаана
       if (result.reason === "stale" || result.reason === "not-your-turn") {
         toast("Ээлж өөрчлөгдсөн байна — шинэчиллээ.");
@@ -891,7 +932,12 @@ function handleRoundEnd() {
   const game = app.game;
   if (!game.lastRound || lastShownRound === game.round) return;
   lastShownRound = game.round;
-  app.handOrder = []; // шинэ тараалт — хуучин дараалал хамаарахгүй
+  // Шинэ тараалт — хуучин дараалал ба СОНГОЛТ хоёулаа хамаарахгүй.
+  // Өмнө нь сонголт үлдэж, шинэ гарт ижил id-тай хөзөр сонгоотой
+  // харагдаж, санамсаргүй тавигдах эрсдэлтэй байсан.
+  app.handOrder = [];
+  app.selected.clear();
+  app.hintIds.clear();
 
   const outcome = game.lastRound;
   const mine = outcome.results.find((r) => r.id === app.myIndex);
@@ -978,6 +1024,20 @@ function exitToLobby() {
   loadLeaderboard();
 }
 
+/** Гарын сонсогчийг ҮНЭХЭЭР салгана. Өмнө нь зөвхөн лавлагааг null
+ *  болгодог тул сонсогч амьд үлдэж, өөр өрөөнд ижил суудалд суухад
+ *  ХУУЧИН өрөөний гарыг харуулж, тэрийгээ тавьж болох эрсдэлтэй байв. */
+function stopHandWatch() {
+  if (handUnsub) {
+    try {
+      handUnsub();
+    } catch {
+      /* аль хэдийн салсан */
+    }
+  }
+  handUnsub = null;
+}
+
 function clearSubscriptions() {
   app.unsub.forEach((fn) => {
     try {
@@ -987,7 +1047,7 @@ function clearSubscriptions() {
     }
   });
   app.unsub = [];
-  handUnsub = null;
+  stopHandWatch();
   app.myHand = null;
 }
 
@@ -1003,7 +1063,7 @@ function showRules() {
       фүл хаус · покер (4+1) · страйт флаш · рояал флаш</p>
       <p><strong>5 хөзрийн эрэмбэ:</strong> страйт &lt; флаш &lt; фүл хаус &lt; покер &lt; страйт флаш</p>
       <p><strong>Оноо:</strong> нэг хүн хөзрөө дуусгамагц үе дуусна. Үлдсэн хөзрийн тоо
-      оноо болно. 10-аас дээш хөзөр үлдвэл ×2, нэг ч хөзөр гаргаагүй (13) бол ×3.</p>
+      оноо болно. 10 ба түүнээс дээш хөзөр үлдвэл ×2, нэг ч хөзөр гаргаагүй (13) бол ×3.</p>
       <p><strong>Хасалт:</strong> 30 оноо цуглуулсан тоглогч хасагдана. Сүүлд үлдсэн нь ялагч.</p>`,
     actions: [{ label: "Ойлголоо", primary: true }],
   });

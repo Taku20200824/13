@@ -166,6 +166,8 @@ export async function recordResult(uid, stats) {
       recordedGames: history,
       updatedAt: mod.serverTimestamp(),
     };
+    // rating-ыг баримтад хадгална — эрэмбэлэлт серверт хийгдэнэ
+    patch.rating = ratingScore(patch);
 
     tx.update(ref, patch);
     recorded = true;
@@ -181,9 +183,24 @@ export async function recordResult(uid, stats) {
  */
 export async function fetchLeaderboard(max = 20) {
   if (!db) return [];
-  const q = mod.query(mod.collection(db, "users"), mod.limit(Math.max(max * 5, 50)));
-  const snap = await mod.getDocs(q);
-  return snap.docs
+  // Сервер талд rating-аар эрэмбэлнэ. Өмнө нь эрэмбэлэлгүйгээр эхний
+  // 50 баримтыг (баримтын нэрийн дарааллаар) авдаг байсан тул 200
+  // хэрэглэгчтэй үед 1-р байрынх нь жагсаалтад огт орохгүй байв.
+  // Ганц талбарын эрэмбэ тул composite index шаардахгүй.
+  let docs;
+  try {
+    const q = mod.query(
+      mod.collection(db, "users"),
+      mod.orderBy("rating", "desc"),
+      mod.limit(Math.max(max * 3, 40)),
+    );
+    docs = (await mod.getDocs(q)).docs;
+  } catch {
+    // rating талбаргүй хуучин профайлууд байвал буцаж бүхэлд нь уншина
+    const q = mod.query(mod.collection(db, "users"), mod.limit(Math.max(max * 5, 60)));
+    docs = (await mod.getDocs(q)).docs;
+  }
+  return docs
     .map((d) => {
       const row = { uid: d.id, ...d.data() };
       return { ...row, rating: typeof row.rating === "number" ? row.rating : ratingScore(row) };
@@ -378,7 +395,8 @@ export async function startGameTransaction(code, uid, buildGame) {
       status: "playing",
       seats: serializeSeats(built.seats),
       state: built.state,
-      stateVersion: 1,
+      // Дууссан өрөөг дахин эхлүүлэхэд хувилбар БУЦАЖ УНАХГҮЙ байх ёстой
+      stateVersion: (data.stateVersion ?? 0) + 1,
       startedAt: Date.now(),
       gameId: `${code}-${Date.now()}`,
       hostSeenAt: Date.now(),
@@ -513,6 +531,29 @@ export async function commitMove(code, { seatIndex, expectedVersion, state, hand
   return outcome;
 }
 
+/**
+ * Үеийн шинэ төлвийг нийтэлнэ (шинэ тараалт, дараагийн үе, дуусгах).
+ *
+ * `state`-ийг бичихдээ `stateVersion`-ыг ЗААВАЛ өсгөх ёстой — дүрэм
+ * үүнийг шаарддаг. Өмнө нь энэ функц хувилбарыг өсгөдөггүй байсан тул
+ * 1-р үеийн дараах бүх шилжилт permission-denied болж, тоглоом царцдаг байв.
+ */
+export async function publishState(code, { state, status, seats }) {
+  let version = null;
+  await mod.runTransaction(db, async (tx) => {
+    const ref = roomRef(code);
+    const snap = await tx.get(ref);
+    if (!snap.exists()) throw new Error("Өрөө олдсонгүй.");
+    const current = snap.data().stateVersion ?? 0;
+    const patch = { state, stateVersion: current + 1, hostSeenAt: Date.now(), updatedAt: mod.serverTimestamp() };
+    if (status) patch.status = status;
+    if (seats) patch.seats = serializeSeats(seats);
+    tx.update(ref, patch);
+    version = current + 1;
+  });
+  return version;
+}
+
 export async function updateRoom(code, patch) {
   await mod.updateDoc(roomRef(code), { ...patch, updatedAt: mod.serverTimestamp() });
 }
@@ -530,10 +571,16 @@ export async function writeHand(code, index, entry) {
   await mod.setDoc(handRef(code, index), { uid: entry.uid ?? null, cards: entry.cards });
 }
 
-export function watchHand(code, index, callback) {
-  return mod.onSnapshot(handRef(code, index), (snap) => {
-    callback(snap.exists() ? snap.data().cards : []);
-  });
+export function watchHand(code, index, callback, onError) {
+  return mod.onSnapshot(
+    handRef(code, index),
+    (snap) => callback(snap.exists() ? snap.data().cards : []),
+    // Алдааг чимээгүй залгивал сонсогч үхээд тоглогч мөнхөд хүлээнэ
+    (error) => {
+      console.error("watchHand", code, index, error);
+      onError?.(error);
+    },
+  );
 }
 
 export async function readHand(code, index) {

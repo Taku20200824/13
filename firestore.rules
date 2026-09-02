@@ -79,8 +79,19 @@ service cloud.firestore {
                     && incoming().status == 'waiting'
                     && me() in incoming().members;
 
+      // Шинээр нэгдэж буй хүн зөвхөн суудал эзлэх эрхтэй: хүлээж буй
+      // өрөө байх ёстой, тоглоомын төлөв/host/статусыг хөндөж болохгүй.
+      // Өмнө нь өөрийгөө `members`-т нэмээд л дурын өрөөний төлөвийг
+      // хуурамчаар бичих боломжтой байсан.
+      function joiningCleanly() {
+        return me() in incoming().members
+               && existing().status == 'waiting'
+               && !request.resource.data.diff(resource.data).affectedKeys()
+                     .hasAny(['state', 'stateVersion', 'host', 'status', 'gameId', 'startedAt']);
+      }
+
       allow update: if signedIn()
-                    && (isMember() || me() in incoming().members)
+                    && (isMember() || joiningCleanly())
                     && (
                          hostUnchanged()
                          || isHost()
@@ -110,7 +121,11 @@ service cloud.firestore {
         function room() {
           return get(/databases/$(database)/documents/rooms/$(code)).data;
         }
+        // Баримт хараахан үүсээгүй байхад `resource` нь null болж,
+        // `resource.data` алдаа өгдөг → сонсогч үхэж, тоглогч мөнхөд
+        // хүлээдэг байсан. Хоосон баримтыг уншихад асуудалгүй.
         allow read: if signedIn() && (
+                      resource == null ||
                       resource.data.uid == me() ||
                       room().host == me()
                     );

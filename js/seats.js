@@ -107,6 +107,11 @@ export function seatsMatchState(seats, state) {
   const normalized = normalizeSeats(seats);
   return state.players.every((player) => {
     const seat = normalized[player.index];
-    return seat ? seat.uid === player.id : false;
+    if (!seat) {
+      // Хоосон суудал нь зөрчил БИШ — тоглоом хоосон суудалтай эхэлж болно
+      // (main.js тэдгээрийг `empty-N` id-гаар дүүргэдэг).
+      return player.absent === true || String(player.id ?? "").startsWith("empty-");
+    }
+    return seat.uid === player.id;
   });
 }

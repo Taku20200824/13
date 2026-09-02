@@ -118,6 +118,9 @@ export function validatePlay(game, playerIndex, cards) {
 
   if (game.mustPlayStartingCard && !cards.some((c) => c.id === game.startingCardId)) {
     const card = hand.find((c) => c.id === game.startingCardId);
+    // Тухайн хөзөр гарт байхгүй бол шаардлага хамаарахгүй (өмнө нь
+    // энд card === undefined болж TypeError өгөх боломжтой байсан)
+    if (!card) return null;
     return `Эхний нүүдэлд ${card.rank}${card.symbol} заавал орно.`;
   }
   return rejectReason(cards, game.table);

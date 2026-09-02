@@ -59,6 +59,16 @@ function detectStraight(cards) {
  */
 export function detect(cards) {
   if (!Array.isArray(cards) || cards.length === 0) return null;
+
+  // Нэг хөзрийг хоёр удаа тоолж болохгүй. Өмнө нь [3♦,3♦] нь "хос",
+  // [3♦,3♦,3♦,3♦,5♣] нь "покер" гэж танигдаж, эвдэрсэн client жинхэнэ
+  // фүл хаусыг дийлэх боломжтой байсан.
+  const ids = new Set();
+  for (const card of cards) {
+    if (!card?.id || ids.has(card.id)) return null;
+    ids.add(card.id);
+  }
+
   const sorted = sortByValue(cards);
   const base = (type, extra) => ({
     type,
