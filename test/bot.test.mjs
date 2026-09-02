@@ -75,6 +75,20 @@ test("өрсөлдөгч дуусах гэж байвал хориглоно", (
   assert.ok(move.cards[0].rank === "7" || move.cards[0].rank === "2");
 });
 
+test("critical үед ширээ цэвэр бол нэг хөзөртэй хүнийг multi-card-аар хаана", () => {
+  const game = createGame(defs, { seed: 31 });
+  rig(game, [h("7D", "7C", "2S"), h("9D"), h("JD"), h("4D", "4C", "QH")], 0, null);
+  const move = chooseMove(game, 0, { difficulty: DIFFICULTY.HARD });
+  assert.equal(move.size, 2, `нэг хөзөртэй хүмүүсийг pair-аар хаах ёстой: ${move.label}`);
+});
+
+test("critical үед ганц сонголтууд байвал хамгийн хүчтэй blocker-оо тавина", () => {
+  const game = createGame(defs, { seed: 32 });
+  rig(game, [h("7D", "KH", "2S"), h("9D"), h("JD"), h("4D", "4C", "QH")], 0, null);
+  const move = chooseMove(game, 0, { difficulty: DIFFICULTY.HARD });
+  assert.equal(move.cards[0].id, "2S", `сул single тавьж болохгүй: ${move.label}`);
+});
+
 test("тавих боломжгүй бол пасс (null) буцаана", () => {
   const game = createGame(defs, { seed: 4 });
   const table = { type: "single", size: 1, cards: h("2S"), strength: 999 };
