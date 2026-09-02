@@ -14,6 +14,7 @@ export const SUIT_BY_ID = Object.fromEntries(SUITS.map((s) => [s.id, s]));
 
 /** Тоглоомын ерөнхий эрэмбэ — 2 хамгийн том. */
 export const RANKS = ["3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2"];
+export const DECK_SIZE = RANKS.length * SUITS.length;
 
 /**
  * Straight-д хэрэглэгдэх тусдаа эрэмбэ.
@@ -44,18 +45,57 @@ export function makeCard(rank, suitId) {
 export function makeDeck() {
   const deck = [];
   for (const rank of RANKS) for (const suit of SUITS) deck.push(makeCard(rank, suit.id));
+  assertUniqueCards(deck, "deck");
+  if (deck.length !== DECK_SIZE) throw new Error(`Deck ${DECK_SIZE} биш байна: ${deck.length}`);
   return deck;
+}
+
+export function assertUniqueCards(cards, label = "cards") {
+  const ids = cards.map((card) => card.id);
+  const unique = new Set(ids);
+  if (unique.size !== ids.length) {
+    const duplicates = ids.filter((id, index) => ids.indexOf(id) !== index);
+    throw new Error(`${label}: давхардсан хөзөр байна (${[...new Set(duplicates)].join(", ")})`);
+  }
+  return true;
 }
 
 /** Fisher–Yates. seed өгвөл давтагдах дараалал үүснэ (тест болон host-ын хуваарилалтад). */
 export function shuffle(cards, seed) {
+  assertUniqueCards(cards, "shuffle input");
   const deck = [...cards];
-  const rand = seed === undefined ? Math.random : mulberry32(seed);
+  const rand = seed === undefined ? null : mulberry32(seed);
   for (let i = deck.length - 1; i > 0; i -= 1) {
-    const j = Math.floor(rand() * (i + 1));
+    const j = rand ? Math.floor(rand() * (i + 1)) : randomInt(i + 1);
     [deck[i], deck[j]] = [deck[j], deck[i]];
   }
+  assertUniqueCards(deck, "shuffle output");
   return deck;
+}
+
+export function dealHands(playerCount, cardsPerPlayer = 13, seed) {
+  if (!Number.isInteger(playerCount) || playerCount < 1) throw new Error("Тоглогчийн тоо буруу байна.");
+  const needed = playerCount * cardsPerPlayer;
+  if (needed > DECK_SIZE) throw new Error(`Дутуу deck: ${needed} хөзөр хэрэгтэй.`);
+
+  const deck = shuffle(makeDeck(), seed);
+  const hands = Array.from({ length: playerCount }, (_, index) =>
+    deck.slice(index * cardsPerPlayer, index * cardsPerPlayer + cardsPerPlayer),
+  );
+  assertUniqueCards(hands.flat(), "dealt hands");
+  return hands;
+}
+
+function randomInt(max) {
+  const crypto = globalThis.crypto;
+  if (!crypto?.getRandomValues) return Math.floor(Math.random() * max);
+
+  const limit = Math.floor(0x100000000 / max) * max;
+  const value = new Uint32Array(1);
+  do {
+    crypto.getRandomValues(value);
+  } while (value[0] >= limit);
+  return value[0] % max;
 }
 
 function mulberry32(seed) {
