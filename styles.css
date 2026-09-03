@@ -2551,5 +2551,52 @@ input {
 
   .seat-card {
     align-content: start;
+    min-width: 0;
+  }
+
+  /* Нарийн дэлгэцэд агуулга баруун тийш халихыг зогсооно.
+     grid/flex элементийн анхдагч min-width:auto нь агуулгаа шахуулахгүй тул
+     самбар, товч, гар viewport-оос гарч тасардаг байв. */
+  .table-felt > *,
+  .you,
+  .hand,
+  .controls,
+  .center {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  /* 3 өрсөлдөгч ямар ч өргөнд багтана (өмнө нь minmax(160px) → халидаг байв) */
+  .opponents {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .seat-who strong,
+  .seat-who small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+/* Хөзрийн хэмжээ ӨРГӨНӨӨС хамаарна — босоо (portrait) утсанд өндөр их ч
+   өргөн бага тул зөвхөн өндрөөр том хөзөр өгвөл 13 хөзөр + товч багтахгүй.
+   Эдгээр нь өндрийн дүрмийн ДАРАА тул нарийн дэлгэцэд давамгайлна. */
+@media (max-width: 560px) and (min-height: 481px) {
+  :root {
+    --card-w: 38px;
+    --card-h: 53px;
+  }
+}
+
+@media (max-width: 400px) and (min-height: 481px) {
+  :root {
+    --card-w: 32px;
+    --card-h: 45px;
+  }
+
+  .controls .btn {
+    padding: 8px 4px;
+    font-size: 12px;
   }
 }
