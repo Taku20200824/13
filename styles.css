@@ -859,23 +859,42 @@ input {
     0 14px 40px rgba(0, 0, 0, 0.45);
 }
 
-/* Өрсөлдөгчид ширээний дээд нумаар: зүүн — дээд — баруун */
+/* Өрсөлдөгчид ширээг ТОЙРУУЛЖ суудаг: зүүн тал — дээд — баруун тал.
+   Доор нь (доод тал) та өөрөө. Ингэснээр дугуй ширээний мэдрэмж бүрдэнэ. */
 .felt .opponents {
   position: absolute;
-  top: 10px;
-  left: 12px;
-  right: 12px;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 10px;
+  inset: 0;
+  pointer-events: none;
 }
 
 .felt .opponents .seat-card {
-  flex: 1 1 0;
+  position: absolute;
+  width: 40%;
+  max-width: 210px;
   min-width: 0;
-  max-width: 230px;
   padding: 7px 12px;
+  pointer-events: auto;
+}
+
+/* Зүүн тал */
+.felt .opponents .seat-card:nth-child(1) {
+  left: 8px;
+  top: 20%;
+}
+
+/* Дээд төв */
+.felt .opponents .seat-card:nth-child(2) {
+  left: 50%;
+  top: 6px;
+  width: 44%;
+  max-width: 240px;
+  transform: translateX(-50%);
+}
+
+/* Баруун тал */
+.felt .opponents .seat-card:nth-child(3) {
+  right: 8px;
+  top: 20%;
 }
 
 /* Компакт өрсөлдөгч — мини гар, оноо бар зай эзэлдэг тул фетр дээр нууна.
@@ -893,15 +912,6 @@ input {
   width: 30px;
   height: 30px;
   font-size: 13px;
-}
-
-/* Дунд суудлыг бага зэрэг дээшлүүлж нум мэдрэмж өгнө */
-.felt .opponents .seat-card:nth-child(2) {
-  transform: translateY(-4px);
-}
-
-.felt .opponents .seat-card:nth-child(2)[data-turn] {
-  transform: translateY(-7px);
 }
 
 /* Төв (тавьсан хөзөр) фетр дээр — дэвсгэргүй */
