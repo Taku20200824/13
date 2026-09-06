@@ -423,15 +423,18 @@
       </header>
 
       <div class="table-felt">
-        <div class="opponents" id="opponents"></div>
+        <!-- Дугуй ширээ: төвд ногоон фетр, эргэн тойронд 4 тоглогч -->
+        <div class="felt">
+          <div class="opponents" id="opponents"></div>
 
-        <div class="center">
-          <div class="pile-wrap">
-            <p class="pile-owner" id="pileOwner"></p>
-            <div class="pile" id="pile" aria-live="polite"></div>
+          <div class="center">
+            <div class="pile-wrap">
+              <p class="pile-owner" id="pileOwner"></p>
+              <div class="pile" id="pile" aria-live="polite"></div>
+            </div>
+            <p class="banner" id="banner" role="status"></p>
+            <ul class="log" id="log" aria-label="Тоглолтын явц"></ul>
           </div>
-          <p class="banner" id="banner" role="status"></p>
-          <ul class="log" id="log" aria-label="Тоглолтын явц"></ul>
         </div>
 
         <div class="you" id="you">

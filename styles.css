@@ -827,8 +827,8 @@ input {
 .table-felt {
   flex: 1;
   display: grid;
-  /* minmax(0, 1fr) — төв нь үлдсэн зайд багтаж, товчнуудыг доош түлхэхгүй */
-  grid-template-rows: auto minmax(0, 1fr) auto;
+  /* Дугуй ширээ (felt) дээд зайг дүүргэнэ, доор нь таны суудал (you). */
+  grid-template-rows: minmax(0, 1fr) auto;
   align-content: stretch;
   overflow: hidden;
   gap: 12px;
@@ -838,6 +838,80 @@ input {
   margin: 0 auto;
   min-height: 0;
   min-width: 0;
+}
+
+/* ── Дугуй ширээ (ногоон фетр) ─────────────────────
+   Төвд тоглосон хөзөр, эргэн тойронд 3 өрсөлдөгч нум хэлбэрээр. */
+.felt {
+  position: relative;
+  min-height: 0;
+  min-width: 0;
+  display: grid;
+  place-items: center;
+  padding: 64px 20px 18px; /* дээр талд өрсөлдөгчдийн нимгэн зурвасны зай */
+  border-radius: 46% / 34%;
+  background:
+    radial-gradient(ellipse at 50% 40%, #1f7250 0%, #165541 46%, #0f3d2d 76%, #0b2e22 100%);
+  box-shadow:
+    inset 0 0 0 2px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 8px rgba(255, 255, 255, 0.03),
+    inset 0 0 60px rgba(0, 0, 0, 0.4),
+    0 14px 40px rgba(0, 0, 0, 0.45);
+}
+
+/* Өрсөлдөгчид ширээний дээд нумаар: зүүн — дээд — баруун */
+.felt .opponents {
+  position: absolute;
+  top: 10px;
+  left: 12px;
+  right: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.felt .opponents .seat-card {
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 230px;
+  padding: 7px 12px;
+}
+
+/* Компакт өрсөлдөгч — мини гар, оноо бар зай эзэлдэг тул фетр дээр нууна.
+   Үлдсэн хөзрийн тоо баруун талын badge дээр хэвээр харагдана. */
+.felt .opponents .mini-hand,
+.felt .opponents .score-bar {
+  display: none;
+}
+
+.felt .opponents .seat-head {
+  gap: 8px;
+}
+
+.felt .opponents .seat-head .avatar {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+}
+
+/* Дунд суудлыг бага зэрэг дээшлүүлж нум мэдрэмж өгнө */
+.felt .opponents .seat-card:nth-child(2) {
+  transform: translateY(-4px);
+}
+
+.felt .opponents .seat-card:nth-child(2)[data-turn] {
+  transform: translateY(-7px);
+}
+
+/* Төв (тавьсан хөзөр) фетр дээр — дэвсгэргүй */
+.felt .center {
+  background: none;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  width: 100%;
+  max-width: 460px;
 }
 
 /* ── Өрсөлдөгчийн самбар ─────────────────────────
@@ -1579,7 +1653,7 @@ input {
   }
 
   .table-felt {
-    grid-template-rows: auto minmax(140px, 250px) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   /* Гарыг дэлгэц дүүрэн салаа болгож давхарлана — 13 хөзөр нэг мөрөнд багтана */
@@ -2385,6 +2459,17 @@ input {
     --card-h: 46px;
   }
 
+  /* Намхан (landscape) дэлгэцэд ширээ талбай багатай — дээд зайг багасгаж,
+     тавьсан хөзрийг фетр дотор голлуулна. */
+  .felt {
+    padding: 50px 12px 10px;
+    border-radius: 40% / 26%;
+  }
+
+  .felt .opponents {
+    top: 6px;
+  }
+
   /* Өрсөлдөгчийн самбарыг намхан болгоно — доод прогресс бар, мини гар
      хэвтээ горимд зай эзэлдэг тул нууна. */
   .score-bar,
@@ -2432,7 +2517,7 @@ input {
     padding: 6px;
     gap: 6px;
     /* Төвийн эгнээ хөзрийн өндрөөс доош шахагдахгүй — pile үргэлж харагдана */
-    grid-template-rows: auto minmax(var(--card-h), 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto;
   }
 
   .opponents {
