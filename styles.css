@@ -1985,7 +1985,7 @@ input {
 
 .chat-message {
   display: grid;
-  grid-template-columns: minmax(72px, 110px) minmax(0, 1fr);
+  grid-template-columns: minmax(64px, 100px) minmax(0, 1fr) auto;
   gap: 8px;
   align-items: baseline;
   padding: 8px 9px;
@@ -2002,6 +2002,15 @@ input {
 .chat-message span {
   overflow-wrap: anywhere;
   color: var(--ink-soft);
+}
+
+/* Бичсэн он·сар·өдөр·цаг — баруун талд бүдэг */
+.chat-time {
+  color: var(--ink-faint);
+  font-size: 10.5px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  text-align: right;
 }
 
 .chat-form {

@@ -43,6 +43,31 @@ function renderPublicRooms(rooms) {
   });
 }
 
+const pad2 = (n) => String(n).padStart(2, "0");
+
+/** Мессежийн он·сар·өдөр·цаг. Тухайн жилийнх бол жилийг орхиж товч харуулна. */
+function chatTimeLabel(ms) {
+  if (!ms || typeof ms !== "number") return "";
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  const now = new Date();
+  const date =
+    d.getFullYear() === now.getFullYear()
+      ? `${d.getMonth() + 1}/${d.getDate()}`
+      : `${d.getFullYear()}/${d.getMonth() + 1}/${d.getDate()}`;
+  return `${date} ${pad2(d.getHours())}:${pad2(d.getMinutes())}`;
+}
+
+/** Дэлгэрэнгүй (hover) — он.сар.өдөр цаг:минут:секунд */
+function chatTimeFull(ms) {
+  if (!ms || typeof ms !== "number") return "";
+  const d = new Date(ms);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}.${pad2(d.getMonth() + 1)}.${pad2(d.getDate())} ${pad2(
+    d.getHours(),
+  )}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+}
+
 function renderChat(listId, messages) {
   const list = $(listId);
   if (!list) return;
@@ -54,9 +79,14 @@ function renderChat(listId, messages) {
   messages.forEach((message) => {
     const li = document.createElement("li");
     li.className = "chat-message";
+    const ms = typeof message.createdMs === "number" ? message.createdMs : null;
+    const timeLabel = chatTimeLabel(ms);
+    const timeHtml = timeLabel
+      ? `<time class="chat-time" datetime="${new Date(ms).toISOString()}" title="${chatTimeFull(ms)}">${timeLabel}</time>`
+      : "";
     li.innerHTML = `
       <strong>${escapeHtml(message.name ?? "Зочин")}</strong>
-      <span>${escapeHtml(message.text ?? "")}</span>`;
+      <span>${escapeHtml(message.text ?? "")}</span>${timeHtml}`;
     list.appendChild(li);
   });
   list.scrollTop = list.scrollHeight;
