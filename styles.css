@@ -2587,12 +2587,30 @@ input {
     --card-w: 38px;
     --card-h: 53px;
   }
+
+  /* Давхарлалтыг ЖИЖИГ хөзөрт тохируулна — өмнөх -30/-25px нь 38px хөзрийн
+     бараг бүхэлдээ халхалж, гар нэг овоо болж харагддаг байв. */
+  .hand .card {
+    margin-left: -13px;
+  }
+
+  .hand .card:first-child {
+    margin-left: 0;
+  }
 }
 
 @media (max-width: 400px) and (min-height: 481px) {
   :root {
     --card-w: 32px;
     --card-h: 45px;
+  }
+
+  .hand .card {
+    margin-left: -12px;
+  }
+
+  .hand .card:first-child {
+    margin-left: 0;
   }
 
   .controls .btn {
