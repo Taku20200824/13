@@ -16,6 +16,17 @@
       href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
       rel="stylesheet"
     />
+    <script>
+      // Горимыг ХУУДАС ЗУРАГДАХААС ӨМНӨ тавина. js/theme.js нь module тул
+      // хойшилж ажилладаг — тэнд тавибал өнгө нэг анивчаад солигдоно.
+      // (Логик нь js/theme.js-тэй тааруулсан хуулбар — хамт засна.)
+      try {
+        var t = localStorage.getItem("huzur.theme");
+        document.documentElement.dataset.theme = t === "code" ? "code" : "felt";
+      } catch (e) {
+        document.documentElement.dataset.theme = "felt";
+      }
+    </script>
     <link rel="stylesheet" href="styles.css" />
     <style>
       [hidden] { display: none !important; }
@@ -225,6 +236,8 @@
         </div>
 
         <p class="auth-note" id="authNote"></p>
+
+        <div class="theme-picker" data-theme-picker role="group" aria-label="Горим"></div>
       </div>
     </section>
 
@@ -235,7 +248,10 @@
           <span class="brand-mark" aria-hidden="true">13</span>
           <strong>Хөзөр</strong>
         </div>
-        <div class="account" id="account"></div>
+        <div class="topbar-right">
+          <div class="theme-picker" data-theme-picker role="group" aria-label="Горим"></div>
+          <div class="account" id="account"></div>
+        </div>
       </header>
 
       <section class="stat-strip" aria-label="Шууд үзүүлэлт">
@@ -428,6 +444,7 @@
           <span aria-hidden="true">💬</span>
           <span class="chat-toggle__badge" id="gameChatBadge" hidden></span>
         </button>
+        <div class="theme-picker theme-picker--compact" data-theme-picker role="group" aria-label="Горим"></div>
         <button class="link" id="btnRulesToggle" type="button">Дүрэм</button>
       </header>
 

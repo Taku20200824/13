@@ -17,6 +17,7 @@ import { setActiveRoom } from "./social.js";
 import { enumeratePlays } from "./rules.js";
 import * as fb from "./firebase.js";
 import { initAnalytics } from "./analytics.js";
+import { mountThemePickers } from "./theme.js";
 import {
   seatsMatchState,
   SEAT_COUNT,
@@ -130,6 +131,8 @@ async function boot() {
 /* ══════════ Нэвтрэлт ══════════ */
 
 function wireEvents() {
+  mountThemePickers();
+
   $("btnGoogle").addEventListener("click", async () => {
     try {
       await fb.signInGoogle();
