@@ -8,8 +8,5 @@
     "dev": "python tools/devserver.py 5173 .",
     "test": "node --test test/",
     "arena": "node tools/arena.mjs --rounds 1200"
-  },
-  "dependencies": {
-    "@vercel/analytics": "^2.0.1"
   }
 }
