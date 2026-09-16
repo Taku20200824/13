@@ -1,4 +1,5 @@
 // Апп удирдлага — нэвтрэлт, lobby, өрөө, тоглоом.
+import { inject } from "@vercel/analytics";
 import { cardValue, suitOrder, rankOrder } from "./cards.js";
 import {
   createGame,
@@ -70,6 +71,9 @@ const app = {
 boot();
 
 async function boot() {
+  // Initialize Vercel Analytics
+  inject();
+  
   wireEvents();
 
   if (!fb.online) {
