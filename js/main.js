@@ -17,6 +17,7 @@ import { startDashboard, stopDashboard, setDashboardContext } from "./dashboard.
 import { setActiveRoom } from "./social.js";
 import { enumeratePlays } from "./rules.js";
 import * as fb from "./firebase.js";
+import { initAnalytics } from "./analytics.js";
 import {
   seatsMatchState,
   SEAT_COUNT,
@@ -68,6 +69,9 @@ const app = {
 
 /* ══════════ Boot ══════════ */
 
+// Firebase-ээс ӨМНӨ дуудна: тохиргоо дутуу байж boot эрт зогссон ч
+// хуудас нээгдсэн нь хэмжигдэх ёстой.
+initAnalytics();
 boot();
 
 async function boot() {
