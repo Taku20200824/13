@@ -1,5 +1,4 @@
 // Апп удирдлага — нэвтрэлт, lobby, өрөө, тоглоом.
-import { inject } from "@vercel/analytics";
 import { cardValue, suitOrder, rankOrder } from "./cards.js";
 import {
   createGame,
@@ -75,9 +74,6 @@ initAnalytics();
 boot();
 
 async function boot() {
-  // Initialize Vercel Analytics
-  inject();
-  
   wireEvents();
 
   if (!fb.online) {
@@ -894,7 +890,7 @@ function draw() {
  * Ranking-д бүртгэх. Гурван хамгаалалт:
  *   1. Зөвхөн ОНЛАЙН тоглоом — bot-той дасгал ranking-д тоологдохгүй.
  *   2. Дор хаяж 2 хүн байсан байх — ганцаараа bot дарж оноо цуглуулахгүй.
- *   3. gameId-гаар давхардлыг таслана — өрөөнд дахин ороход дахин нэмэгдэхгүй.
+ *   3. gameId-гаар давхардлыг таслана — өрө��нд дахин ороход дахин нэмэгдэхгүй.
  */
 function recordGameResult(game, won) {
   if (!fb.online || !app.user) return;
