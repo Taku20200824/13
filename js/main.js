@@ -61,7 +61,7 @@ const app = {
   hostTimer: null,
   recordedGameId: null,
   handOrder: [], // хэрэглэгчийн гараар өөрчилсөн дараалал (хөзрийн id)
-  difficulty: DIFFICULTY.HARD,
+  difficulty: DIFFICULTY.EXPERT,
   stats: { rounds: 0, roundWins: 0, points: 0 },
 };
 
@@ -309,10 +309,14 @@ const isHost = () => app.room && app.user && app.room.host === app.user.uid;
 const hostLooksStale = () =>
   app.room?.hostSeenAt && Date.now() - app.room.hostSeenAt > HOST_WARN_MS;
 
+const BOT_LEVELS = {
+  normal: DIFFICULTY.NORMAL,
+  hard: DIFFICULTY.HARD,
+  expert: DIFFICULTY.EXPERT,
+};
+
 const botLevel = () =>
-  document.querySelector('input[name="botLevel"]:checked')?.value === "normal"
-    ? DIFFICULTY.NORMAL
-    : DIFFICULTY.HARD;
+  BOT_LEVELS[document.querySelector('input[name="botLevel"]:checked')?.value] ?? DIFFICULTY.EXPERT;
 
 const roomVisibility = () =>
   document.querySelector('input[name="roomVisibility"]:checked')?.value === "private"
@@ -689,7 +693,7 @@ async function runBotChain() {
       });
       if (full.phase !== PHASE.PLAYING || full.turn !== turn) return;
 
-      const move = chooseMove(full, turn, { difficulty: app.room?.botLevel ?? DIFFICULTY.HARD });
+      const move = chooseMove(full, turn, { difficulty: app.room?.botLevel ?? DIFFICULTY.EXPERT });
       const result = move ? play(full, turn, move.cards) : pass(full, turn);
       if (!result.ok && !pass(full, turn).ok) return; // гацахаас сэргийлнэ
 

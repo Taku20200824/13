@@ -1,7 +1,7 @@
 // Тоглоомын цөм — DOM-оос ангид, цэвэр төлөвийн машин.
 // UI болон Firestore хоёулаа үүнийг ашиглана.
 import { dealHands, sortByValue, cardValue } from "./cards.js";
-import { detect, beats, rejectReason, COMBO_NAMES as COMBO_LABELS } from "./rules.js";
+import { detect, beats, rejectReason, compareSameShape, COMBO_NAMES as COMBO_LABELS } from "./rules.js";
 import { settleRound, ELIMINATION_SCORE } from "./scoring.js";
 
 export const PHASE = {
@@ -37,6 +37,10 @@ export function createGame(playerDefs, options = {}) {
     table: null, // сүүлд тавигдсан хослол
     tableOwner: null, // түүнийг тавьсан тоглогчийн index
     passed: new Set(),
+    // Хэн ямар хослолыг дийлж ЧАДААГҮЙг санана — суудал → хэмжээ → хослол.
+    // Гар зөвхөн ЖИЖГЭРДЭГ тул "өмнө нь дийлээгүй" нь "хэзээ ч дийлэхгүй"
+    // гэсэн ХАТУУ дүгнэлт болно. Bot үүгээр өрсөлдөгчийг уншина.
+    declined: {},
     startingCardId: null,
     mustPlayStartingCard: false,
     log: [],
@@ -58,6 +62,7 @@ export function startRound(game, seed) {
   game.table = null;
   game.tableOwner = null;
   game.passed = new Set();
+  game.declined = {};
   game.lastRound = null;
   game.played = [];
   game.players.forEach((p) => (p.lastAction = null));
@@ -161,10 +166,23 @@ export function pass(game, playerIndex) {
   if (!game.table) return { ok: false, error: "Ширээ цэвэрхэн үед пасс хийж болохгүй." };
 
   game.passed.add(playerIndex);
+  recordDecline(game, playerIndex, game.table);
   game.players[playerIndex].lastAction = { kind: "pass" };
   log(game, `${game.players[playerIndex].name} пасс`);
   advance(game);
   return { ok: true };
+}
+
+/**
+ * Пасс = "энэ хослолыг дийлж чадахгүй" гэсэн мэдээлэл. Хэмжээ тус бүрд
+ * хамгийн ХҮЧТЭЙГ нь л хадгална — түүнээс сул бүхнийг мөн дийлэхгүй.
+ */
+function recordDecline(game, seat, combo) {
+  if (!combo) return;
+  if (!game.declined) game.declined = {};
+  const bySize = game.declined[seat] ?? (game.declined[seat] = {});
+  const previous = bySize[combo.size];
+  if (!previous || compareSameShape(combo, previous) > 0) bySize[combo.size] = combo;
 }
 
 /**
@@ -252,6 +270,7 @@ export function serializeGame(game) {
     table: game.table,
     tableOwner: game.tableOwner,
     passed: [...game.passed],
+    declined: game.declined ?? {},
     startingCardId: game.startingCardId,
     mustPlayStartingCard: game.mustPlayStartingCard,
     log: game.log.slice(-20),
@@ -282,6 +301,7 @@ export function deserializeGame(data, hands = {}) {
     table: data.table ?? null,
     tableOwner: data.tableOwner ?? null,
     passed: new Set(data.passed ?? []),
+    declined: data.declined ?? {},
     startingCardId: data.startingCardId ?? null,
     mustPlayStartingCard: Boolean(data.mustPlayStartingCard),
     log: data.log ?? [],
