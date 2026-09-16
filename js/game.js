@@ -238,10 +238,49 @@ function endRound(game, winnerIndex) {
 
   game.previousRoundWinner = winnerIndex;
   game.lastRound = outcome;
-  game.phase = outcome.gameWinner ? PHASE.GAME_END : PHASE.ROUND_END;
-  game.gameWinner = outcome.gameWinner ? game.players[outcome.gameWinner.id] : null;
+
+  const ending = decideEnding(game, outcome);
+  game.phase = ending.over ? PHASE.GAME_END : PHASE.ROUND_END;
+  game.gameWinner = ending.winner;
   log(game, `${winner.name} үеийг түрүүлж дуусгалаа.`);
   if (game.gameWinner) log(game, `🏆 ${game.gameWinner.name} тоглоомын ялагч боллоо!`);
+  else if (ending.over) log(game, "Тоглоом дууслаа.");
+}
+
+/**
+ * Тоглоом дуусах эсэх, ялагч хэн болохыг шийднэ.
+ *
+ * ЧУХАЛ: үүнийг ХҮНЭЭР шийднэ, bot-оор биш. Bot-д ranking байхгүй,
+ * онооных нь ач холбогдолгүй тул хүмүүс бүгд хасагдсаны дараа bot-ууд
+ * өөр хоорондоо үргэлжлүүлэн тоглох нь утгагүй — тоглоом тэндээ дуусна.
+ * Мөн bot нь ХЭЗЭЭ Ч тоглоомын ялагч болохгүй.
+ *
+ *   • 2+ хүнтэй  — сүүлийн хүн үлдмэгц тэр ялна (bot амьд байсан ч хамаагүй)
+ *   • 1 хүнтэй   — тэр хүн хасагдвал тоглоом дуусна, ялагчгүй (тэр хожигдсон)
+ *   • хүнгүй     — зөвхөн тестийн bot-only тоглоом: хуучин дүрмээр
+ */
+function decideEnding(game, outcome) {
+  const humans = game.players.filter((p) => !p.absent && !p.isBot);
+  if (humans.length === 0) {
+    return {
+      over: Boolean(outcome.gameWinner),
+      winner: outcome.gameWinner ? game.players[outcome.gameWinner.id] : null,
+    };
+  }
+
+  const alive = humans.filter((p) => !p.eliminated);
+  // Ганц хүн bot-той тоглож байвал тэр хасагдтал үргэлжилнэ
+  const stopAt = humans.length >= 2 ? 1 : 0;
+  if (alive.length > stopAt) return { over: false, winner: null };
+
+  if (alive.length === 1) return { over: true, winner: alive[0] };
+
+  // Бүх хүн нэг дор хасагдсан: хамгийн бага оноотой нь ялна.
+  // Ганцаараа тоглоод хасагдсан бол ялагч БАЙХГҮЙ — тэр хожигдсон.
+  if (humans.length === 1) return { over: true, winner: null };
+  const best = Math.min(...humans.map((p) => p.score));
+  const tied = humans.filter((p) => p.score === best);
+  return { over: true, winner: tied.length === 1 ? tied[0] : null };
 }
 
 export function nextRound(game, seed) {

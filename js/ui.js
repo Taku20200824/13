@@ -69,156 +69,283 @@ export function cardNode(card, { interactive = false } = {}) {
 }
 
 const initials = (name) => (name || "?").trim().slice(0, 1).toUpperCase();
-const handDealRounds = new Map();
-const opponentDealRounds = new Map();
 
-function avatarNode(player) {
-  const node = document.createElement("span");
-  node.className = "avatar";
-  if (player.photo) {
-    const img = document.createElement("img");
-    img.src = player.photo;
-    img.alt = "";
-    img.referrerPolicy = "no-referrer";
-    node.appendChild(img);
-  } else {
-    node.textContent = player.isBot ? "🤖" : initials(player.name);
+/**
+ * Тараалтын анимацийг ЗӨВХӨН шинэ зангилаанд өгнө.
+ *
+ * Урьд нь "энэ үед аль хэдийн тараасан уу" гэдгийг Map-д тэмдэглэж,
+ * `data-dealing` гэсэн тугаар удирддаг байв. Бүх зангилаа дүрслэл бүрд
+ * дахин үүсдэг байсан тул өөр аргагүй байсан юм. Одоо зангилаанууд
+ * байрандаа үлддэг болсон тул "шинэ эсэх" нь өөрөө хариулт болно.
+ */
+function markFresh(node) {
+  node.dataset.fresh = "";
+  node.addEventListener(
+    "animationend",
+    () => node.removeAttribute("data-fresh"),
+    { once: true },
+  );
+}
+
+/* ── DOM-ыг ДАХИН БАРИХГҮЙ шинэчлэх ─────────────────
+   `innerHTML = ""` нь бичихэд хялбар ч үнэтэй: CSS анимац дахин эхэлж,
+   зураг дахин ачаалагдаж, hover/focus алдагдана. draw() нь нүүдэл бүрд
+   дуудагддаг тул хэрэглэгчийн нүдэнд "хөзөр байнга дахин ачаалагдаж
+   байна" гэж харагддаг гол шалтгаан нь ЯГ энэ байсан.
+
+   Оронд нь түлхүүрээр тааруулж, ЗӨВХӨН өөрчлөгдсөнийг нь хөдөлгөнө:
+   хуучин зангилаа байрандаа үлдэж, шинэ нь л анимацтай орж ирнэ. */
+
+function reconcile(parent, keys, create, update) {
+  const wanted = new Set(keys);
+  const existing = new Map();
+  for (const child of [...parent.children]) {
+    const key = child.dataset.key;
+    if (key !== undefined && wanted.has(key) && !existing.has(key)) existing.set(key, child);
+    else child.remove();
   }
-  return node;
+
+  keys.forEach((key, index) => {
+    let node = existing.get(key);
+    if (!node) {
+      node = create(key, index);
+      node.dataset.key = key;
+    }
+    update(node, key, index);
+    // Дарааллыг нь засах — аль хэдийн байрандаа байвал хөндөхгүй
+    if (parent.children[index] !== node) parent.insertBefore(node, parent.children[index] ?? null);
+  });
+}
+
+/** Утга үнэхээр өөрчлөгдсөн үед л бичнэ — дэмий reflow үүсгэхгүй. */
+const setText = (node, text) => {
+  if (node.textContent !== text) node.textContent = text;
+};
+
+const setFlag = (node, name, on) => {
+  if (on === node.hasAttribute(name)) return;
+  if (on) node.setAttribute(name, "");
+  else node.removeAttribute(name);
+};
+
+const setData = (node, name, value) => {
+  if (node.dataset[name] !== value) node.dataset[name] = value;
+};
+
+/**
+ * Нум хэлбэрээр байрлуулах хоёр утга: эргэлт ба доош бууралт.
+ *
+ * CSS дотор `calc(var(--off) * var(--off))` гэж бичиж болохгүй — хоёр
+ * хувьсагчийг үржүүлэхийг browser голж, бүх дүрэм хүчингүй болдог.
+ * Тиймээс индекс ба нийт тоог мэддэг энд бодож өгнө.
+ */
+const FAN_TILT = 2.4; // хөзөр тус бүрийн налуугийн өсөлт (градус)
+const FAN_LIFT = 0.8; // захын хөзөр доошоо бууж, нум үүсгэнэ
+
+function setArc(node, index, total, tilt, lift) {
+  const off = index - (total - 1) / 2;
+  const deg = `${(off * tilt).toFixed(2)}deg`;
+  const down = `${(off * off * lift).toFixed(2)}px`;
+  if (node.style.getPropertyValue("--tilt") !== deg) node.style.setProperty("--tilt", deg);
+  if (node.style.getPropertyValue("--lift") !== down) node.style.setProperty("--lift", down);
 }
 
 /* ── Тоглоомын дэлгэц ───────────────────────────── */
 
+function seatSkeleton() {
+  const node = document.createElement("article");
+  node.className = "seat-card";
+  node.innerHTML = `
+    <div class="action-bubble"></div>
+    <div class="seat-head">
+      <span class="avatar"></span>
+      <div class="seat-who"><strong></strong><small></small></div>
+      <span class="seat-badge"></span>
+    </div>
+    <div class="mini-hand"></div>
+    <div class="score-bar"><i></i></div>`;
+  return node;
+}
+
+/** Аватар — зургийн `src`-ыг ӨӨРЧЛӨГДВӨЛ Л бичнэ, эс бөгөөс дахин татагдана. */
+function updateAvatar(node, player) {
+  if (player.photo) {
+    let img = node.querySelector("img");
+    if (!img) {
+      node.textContent = "";
+      img = document.createElement("img");
+      img.alt = "";
+      img.referrerPolicy = "no-referrer";
+      node.appendChild(img);
+    }
+    if (img.getAttribute("src") !== player.photo) img.setAttribute("src", player.photo);
+    return;
+  }
+  const img = node.querySelector("img");
+  if (img) img.remove();
+  setText(node, player.isBot ? "🤖" : initials(player.name));
+}
+
 export function renderOpponents(game, myIndex) {
   const wrap = $("opponents");
-  wrap.innerHTML = "";
   const passedSet = game.passed?.has ? game.passed : new Set(game.passed ?? []);
+  const seats = game.players.filter((p) => p.index !== myIndex && !p.absent);
+  const bySeat = new Map(seats.map((p) => [String(p.index), p]));
 
-  game.players
-    .filter((p) => p.index !== myIndex && !p.absent)
-    .forEach((player) => {
+  reconcile(
+    wrap,
+    seats.map((p) => String(p.index)),
+    seatSkeleton,
+    (node, key) => {
+      const player = bySeat.get(key);
       const count = player.handCount ?? player.hand.length;
       const passLabel = `пасс · ${count}`;
       const isTurn = player.index === game.turn && game.phase === "playing";
       const hasPassed = passedSet.has(player.index);
 
-      const node = document.createElement("article");
-      node.className = "seat-card";
-      if (isTurn) node.setAttribute("data-turn", "");
-      if (hasPassed) node.setAttribute("data-passed", "");
-      if (player.eliminated) node.setAttribute("data-out", "");
-      if (player.index === game.tableOwner) node.setAttribute("data-owner", "");
+      setFlag(node, "data-turn", isTurn);
+      setFlag(node, "data-passed", hasPassed);
+      setFlag(node, "data-out", Boolean(player.eliminated));
+      setFlag(node, "data-owner", player.index === game.tableOwner);
 
       // Сүүлийн үйлдлийн бөмбөлөг — хэн юу хийснийг шууд харуулна
-      const bubble = document.createElement("div");
-      bubble.className = "action-bubble";
+      const bubble = node.querySelector(".action-bubble");
       if (player.eliminated) {
-        bubble.dataset.kind = "out";
-        bubble.textContent = "хасагдлаа";
+        setData(bubble, "kind", "out");
+        setText(bubble, "хасагдлаа");
       } else if (hasPassed) {
-        bubble.dataset.kind = "pass";
-        bubble.textContent = passLabel;
+        setData(bubble, "kind", "pass");
+        setText(bubble, passLabel);
       } else if (player.lastAction?.kind === "play") {
-        bubble.dataset.kind = "play";
-        bubble.textContent = player.lastAction.label;
+        setData(bubble, "kind", "play");
+        setText(bubble, player.lastAction.label);
       } else {
-        bubble.dataset.kind = "idle";
-        bubble.textContent = "";
+        setData(bubble, "kind", "idle");
+        setText(bubble, "");
       }
-      node.appendChild(bubble);
 
-      const head = document.createElement("div");
-      head.className = "seat-head";
-      head.appendChild(avatarNode(player));
+      updateAvatar(node.querySelector(".avatar"), player);
+      setText(node.querySelector(".seat-who strong"), player.name);
+      setText(node.querySelector(".seat-who small"), `${player.score} оноо`);
 
-      const who = document.createElement("div");
-      who.className = "seat-who";
-      who.innerHTML = `<strong>${escapeText(player.name)}</strong><small>${player.score} оноо</small>`;
-      head.appendChild(who);
-
-      const badge = document.createElement("span");
-      badge.className = "seat-badge";
+      const badge = node.querySelector(".seat-badge");
       if (player.eliminated) {
-        badge.dataset.kind = "out";
-        badge.textContent = "хасагдсан";
+        setData(badge, "kind", "out");
+        setText(badge, "хасагдсан");
       } else if (isTurn) {
-        badge.dataset.kind = "turn";
-        badge.textContent = "ээлж";
+        setData(badge, "kind", "turn");
+        setText(badge, "ээлж");
       } else if (hasPassed) {
-        badge.dataset.kind = "pass";
-        badge.textContent = passLabel;
+        setData(badge, "kind", "pass");
+        setText(badge, passLabel);
       } else {
-        badge.dataset.kind = "cards";
-        badge.textContent = `${count}`;
+        setData(badge, "kind", "cards");
+        setText(badge, `${count}`);
       }
-      head.appendChild(badge);
-      node.appendChild(head);
 
-      const mini = document.createElement("div");
-      mini.className = "mini-hand";
-      const opponentKey = `${myIndex}:${player.index}`;
-      const shouldDeal = count > 0 && game.phase === "playing" && opponentDealRounds.get(opponentKey) !== game.round;
-      if (shouldDeal) mini.dataset.dealing = "";
-      for (let i = 0; i < Math.min(count, 13); i += 1) {
-        const back = document.createElement("span");
-        back.className = "card-back";
-        back.style.setProperty("--deal-index", String(player.index * 13 + i));
-        mini.appendChild(back);
-      }
-      if (shouldDeal) opponentDealRounds.set(opponentKey, game.round);
-      node.appendChild(mini);
+      const mini = node.querySelector(".mini-hand");
+      const shown = Math.min(count, 13);
+      // Түлхүүрт ҮЕИЙН дугаарыг оруулна: шинэ үе эхлэхэд бүх ар тал
+      // дахин үүсэж, тараалтын анимац цэвэр ажиллана.
+      reconcile(
+        mini,
+        Array.from({ length: shown }, (_, i) => `${game.round}:${i}`),
+        () => {
+          const back = document.createElement("span");
+          back.className = "card-back";
+          markFresh(back);
+          return back;
+        },
+        (back, _key, i) => back.style.setProperty("--deal-index", String(player.index * 13 + i)),
+      );
 
-      const bar = document.createElement("div");
-      bar.className = "score-bar";
+      const bar = node.querySelector(".score-bar");
       const pct = Math.min(100, (player.score / ELIMINATION_SCORE) * 100);
-      if (pct >= 70) bar.setAttribute("data-danger", "");
-      bar.innerHTML = `<i style="width:${pct}%"></i>`;
-      node.appendChild(bar);
-
-      wrap.appendChild(node);
-    });
+      setFlag(bar, "data-danger", pct >= 70);
+      const fill = bar.querySelector("i");
+      const width = `${pct}%`;
+      if (fill.style.width !== width) fill.style.width = width;
+    },
+  );
 }
-
 
 export function renderPile(game) {
   const pile = $("pile");
-  pile.innerHTML = "";
   const owner = $("pileOwner");
+
   if (!game.table) {
-    owner.innerHTML = "";
+    if (pile.childElementCount) pile.replaceChildren();
+    if (owner.childElementCount) owner.replaceChildren();
     return;
   }
+
   const player = game.players[game.tableOwner];
   const comboName = game.table.label.split(" (")[0];
-  owner.innerHTML = `<span class="pile-chip"><b>${escapeText(player?.name ?? "")}</b> тавив · ${escapeText(comboName)}</span>`;
-  game.table.cards.forEach((card) => pile.appendChild(cardNode(card)));
+  // Бүтэц нь бүрэн эсэхийг шалгана — дутуу бол дахин барина
+  let chip = owner.querySelector(".pile-chip");
+  if (!chip || !chip.querySelector("b") || !chip.querySelector("span")) {
+    owner.replaceChildren();
+    chip = document.createElement("span");
+    chip.className = "pile-chip";
+    chip.innerHTML = "<b></b><span></span>";
+    owner.appendChild(chip);
+  }
+  setText(chip.querySelector("b"), player?.name ?? "");
+  setText(chip.querySelector("span"), ` тавив · ${comboName}`);
+
+  const cards = new Map(game.table.cards.map((c) => [c.id, c]));
+  reconcile(
+    pile,
+    game.table.cards.map((c) => c.id),
+    (id) => cardNode(cards.get(id)),
+    (node, _id, index) => {
+      node.style.setProperty("--deal-index", String(index));
+      setArc(node, index, game.table.cards.length, 1.7, 0.35);
+    },
+  );
 }
 
 export function renderHand(game, myIndex, selected, hintIds = new Set()) {
   const wrap = $("hand");
-  wrap.innerHTML = "";
   const me = game.players[myIndex];
   const myTurn = game.turn === myIndex && game.phase === "playing";
-  const handKey = String(myIndex);
-  const shouldDeal = me.hand.length > 0 && game.phase === "playing" && handDealRounds.get(handKey) !== game.round;
-  wrap.toggleAttribute("data-dealing", shouldDeal);
 
-  // ЧУХАЛ: хөзрийг disabled болгохгүй. Disabled товч drag эхлүүлж чаддаггүй
-  // тул өмнө нь ээлж биш үед гараа эрэмбэлэх боломжгүй байсан.
-  // Оронд нь `data-locked` тэмдэглэгээ өгч, сонголтыг л хаана.
-  me.hand.forEach((card, index) => {
-    const node = cardNode(card, { interactive: true });
-    node.style.setProperty("--deal-index", String(index));
-    if (selected.has(card.id)) node.setAttribute("data-selected", "");
-    if (hintIds.has(card.id)) node.setAttribute("data-hint", "");
-    if (!myTurn) node.setAttribute("data-locked", "");
-    // draggable-ыг ЗААВАЛ унтраана: үгүй бол Chrome өөрийн native drag
-    // эхлүүлж, pointer урсгалыг тасалдаг (хулганаар зөөх ажиллахгүй болно)
-    node.draggable = false;
-    node.setAttribute("aria-disabled", String(!myTurn));
-    wrap.appendChild(node);
-  });
-  if (shouldDeal) handDealRounds.set(handKey, game.round);
+  // Нум нь захын хөзрийг ДООШ буулгадаг ч урсгалын өндрийг өөрчилдөггүй.
+  // Тиймээс тэр гүнийг хэмжиж, доор нь зай үлдээхийг CSS-д хэлнэ —
+  // эс бөгөөс хөзөр доорх товчнууд дээр давхарлана.
+  const depth = `${(FAN_LIFT * ((me.hand.length - 1) / 2) ** 2).toFixed(1)}px`;
+  if (wrap.style.getPropertyValue("--fan-depth") !== depth) {
+    wrap.style.setProperty("--fan-depth", depth);
+  }
+
+  const cards = new Map(me.hand.map((c) => [c.id, c]));
+  reconcile(
+    wrap,
+    me.hand.map((c) => c.id),
+    (id) => {
+      const node = cardNode(cards.get(id), { interactive: true });
+      markFresh(node);
+      // draggable-ыг ЗААВАЛ унтраана: үгүй бол Chrome өөрийн native drag
+      // эхлүүлж, pointer урсгалыг тасалдаг (хулганаар зөөх ажиллахгүй болно)
+      node.draggable = false;
+      return node;
+    },
+    (node, id, index) => {
+      node.style.setProperty("--deal-index", String(index));
+      // Нумын хазайлт: төвөөс хол хөзөр илүү налж, доошоо бууна.
+      // CSS calc нь хоёр хувьсагчийг үржүүлж чаддаггүй тул энд боддог.
+      setArc(node, index, me.hand.length, FAN_TILT, FAN_LIFT);
+      setFlag(node, "data-selected", selected.has(id));
+      setFlag(node, "data-hint", hintIds.has(id));
+      // ЧУХАЛ: хөзрийг disabled болгохгүй. Disabled товч drag эхлүүлж
+      // чаддаггүй тул ээлж биш үед гараа эрэмбэлэх боломжгүй болно.
+      setFlag(node, "data-locked", !myTurn);
+      const disabled = String(!myTurn);
+      if (node.getAttribute("aria-disabled") !== disabled) {
+        node.setAttribute("aria-disabled", disabled);
+      }
+    },
+  );
 }
 
 /** Сонгосон хөзрүүдийг жижигрүүлж харуулна. Сонголтгүй бол огт харагдахгүй. */
@@ -231,27 +358,27 @@ export function renderPlayPreview(game, myIndex, selected) {
 
   if (chosen.length === 0) {
     wrap.hidden = true;
-    cards.innerHTML = "";
-    combo.textContent = "";
+    if (cards.childElementCount) cards.replaceChildren();
+    setText(combo, "");
     return;
   }
 
   wrap.hidden = false;
-  cards.innerHTML = "";
-  chosen.forEach((card) => {
-    const node = cardNode(card);
-    node.classList.add("card--mini");
-    cards.appendChild(node);
-  });
+  const byId = new Map(chosen.map((c) => [c.id, c]));
+  reconcile(
+    cards,
+    chosen.map((c) => c.id),
+    (id) => {
+      const node = cardNode(byId.get(id));
+      node.classList.add("card--mini");
+      return node;
+    },
+    () => {},
+  );
 
   const found = detect(chosen);
-  if (found) {
-    combo.textContent = found.label.split(" (")[0];
-    combo.dataset.state = "ok";
-  } else {
-    combo.textContent = "хослол биш";
-    combo.dataset.state = "bad";
-  }
+  setText(combo, found ? found.label.split(" (")[0] : "хослол биш");
+  setData(combo, "state", found ? "ok" : "bad");
 }
 
 export function renderSelection(game, myIndex, selected) {
@@ -305,14 +432,21 @@ export function renderStatus(game, myIndex) {
   $("btnHint").disabled = !myTurn;
 }
 
+let lastLog = [];
+
 export function renderLog(game) {
   const list = $("log");
-  list.innerHTML = "";
-  (game.log ?? []).slice(-5).forEach((entry) => {
+  const lines = (game.log ?? []).slice(-5).map((entry) => entry.text);
+  // Өөрчлөгдөөгүй бол огт хөндөхгүй — дэмий reflow үүсгэхгүй
+  if (lines.length === lastLog.length && lines.every((t, i) => t === lastLog[i])) return;
+  lastLog = lines;
+
+  list.replaceChildren();
+  for (const text of lines) {
     const li = document.createElement("li");
-    li.textContent = entry.text;
+    li.textContent = text;
     list.appendChild(li);
-  });
+  }
 }
 
 export function setBanner(text, tone) {

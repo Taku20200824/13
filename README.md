@@ -50,14 +50,17 @@ ES module ашигладаг тул `index.html`-ийг **шууд файлаа�
 
 ```bash
 npm run dev          # http://localhost:5173
-# эсвэл
-python3 -m http.server 5173
 ```
+
+> `npm run dev` нь `tools/devserver.py`-г ажиллуулна. Энгийн
+> `python -m http.server`-ээс ялгаатай нь бүх хариултад `no-store` тавьдаг.
+> Browser нь ES module болон CSS-ийг хаягаар нь кэшилдэг тул үүнгүйгээр
+> засвараа хараахгүй хуучин хувилбартайгаа тэмцэж суух эрсдэлтэй.
 
 Тест:
 
 ```bash
-npm test             # 138 тест
+npm test             # 144 тест
 ```
 
 Bot-ын хүчийг хэмжих (дэлгэрэнгүйг **AI** хэсгээс):
@@ -138,10 +141,11 @@ js/
   firebase.js           auth, өрөө, ranking
   firebase-config.js    ← Firebase тохиргоог энд оруулна
   main.js               апп удирдлага
-test/                   138 unit тест (node --test)
+test/                   144 unit тест (node --test)
 tools/
   arena.mjs             bot-уудыг хооронд нь тоглуулж хүчийг ХЭМЖИНЭ
   bot-legacy.mjs        харьцуулах суурь болгон царцаасан хуучин bot
+  devserver.py          кэшгүй локал сервер (зөвхөн хөгжүүлэлтэд)
 ```
 
 `js/game.js` нь DOM болон Firestore-оос бүрэн ангид. Тиймээс тоглоомын логикийг

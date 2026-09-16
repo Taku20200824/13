@@ -850,13 +850,46 @@ input {
   place-items: center;
   padding: 64px 20px 18px; /* дээр талд өрсөлдөгчдийн нимгэн зурвасны зай */
   border-radius: 46% / 34%;
+  /* Фетрийн гадаргуу: дээрээс тусах гэрэл + нарийн ширхэг.
+     Ширхэгийг хоёр налуу давхарга огтлолцуулж гаргана — зураг хэрэггүй. */
   background:
-    radial-gradient(ellipse at 50% 40%, #1f7250 0%, #165541 46%, #0f3d2d 76%, #0b2e22 100%);
+    repeating-linear-gradient(
+      58deg,
+      rgba(255, 255, 255, 0.016) 0 2px,
+      transparent 2px 4px
+    ),
+    repeating-linear-gradient(
+      -58deg,
+      rgba(0, 0, 0, 0.022) 0 2px,
+      transparent 2px 4px
+    ),
+    radial-gradient(ellipse at 50% 34%, #23805a 0%, #17593f 44%, #0f3d2d 74%, #0a2a1f 100%);
   box-shadow:
-    inset 0 0 0 2px rgba(0, 0, 0, 0.45),
-    inset 0 0 0 8px rgba(255, 255, 255, 0.03),
-    inset 0 0 60px rgba(0, 0, 0, 0.4),
-    0 14px 40px rgba(0, 0, 0, 0.45);
+    /* алтан үс шиг нимгэн ирмэг — ширээний кант */
+    inset 0 0 0 1px rgba(231, 194, 106, 0.28),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 9px rgba(255, 255, 255, 0.035),
+    inset 0 2px 1px rgba(255, 255, 255, 0.07),
+    inset 0 0 90px rgba(0, 0, 0, 0.42),
+    /* Ширээний кант: бараан хүрээ + алтан үс + гүн сүүдэр */
+    0 0 0 10px #0b1d16,
+    0 0 0 11px rgba(231, 194, 106, 0.16),
+    0 0 0 12px rgba(0, 0, 0, 0.55),
+    0 30px 70px -22px rgba(0, 0, 0, 0.8);
+}
+
+/* Төв дэх зөөлөн гэрэл — тавьсан хөзрийг онцолно */
+.felt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: radial-gradient(
+    ellipse 38% 34% at 50% 52%,
+    rgba(255, 255, 255, 0.055),
+    transparent 70%
+  );
 }
 
 /* Өрсөлдөгчид ширээг ТОЙРУУЛЖ суудаг: зүүн тал — дээд — баруун тал.
@@ -942,9 +975,14 @@ input {
 .seat-card {
   position: relative;
   padding: 14px 14px 12px;
-  border: 1px solid var(--line-soft);
+  border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: var(--r-md);
-  background: linear-gradient(180deg, rgba(28, 62, 51, 0.5), rgba(0, 0, 0, 0.25));
+  background: linear-gradient(180deg, rgba(20, 48, 38, 0.62), rgba(3, 14, 10, 0.5));
+  backdrop-filter: blur(10px) saturate(1.1);
+  -webkit-backdrop-filter: blur(10px) saturate(1.1);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.07),
+    0 10px 26px -14px rgba(0, 0, 0, 0.8);
   transition:
     opacity 0.25s var(--ease),
     border-color 0.25s,
@@ -1116,14 +1154,20 @@ input {
   flex-wrap: wrap;
 }
 
+/* Хөзрийн ар тал — хоёр чиглэлийн тор нь жинхэнэ хэв угалз шиг харагдана */
 .card-back {
   width: 15px;
   height: 24px;
   border-radius: 3px;
   background:
-    linear-gradient(150deg, rgba(255, 255, 255, 0.14), transparent 60%),
-    repeating-linear-gradient(45deg, #22553f 0 3px, #17402f 3px 6px);
-  border: 1px solid #2f6b52;
+    linear-gradient(150deg, rgba(255, 255, 255, 0.18), transparent 55%),
+    repeating-linear-gradient(45deg, rgba(231, 194, 106, 0.16) 0 1px, transparent 1px 4px),
+    repeating-linear-gradient(-45deg, rgba(231, 194, 106, 0.16) 0 1px, transparent 1px 4px),
+    linear-gradient(180deg, #23573f, #163d2c);
+  border: 1px solid rgba(231, 194, 106, 0.32);
+  box-shadow:
+    inset 0 0 0 1px rgba(0, 0, 0, 0.35),
+    0 1px 2px rgba(0, 0, 0, 0.4);
   flex: none;
 }
 
@@ -1189,6 +1233,7 @@ input {
 }
 
 .pile {
+  position: relative;
   display: flex;
   justify-content: center;
   gap: 6px;
@@ -1196,10 +1241,28 @@ input {
   align-items: center;
 }
 
+/* Ширээн дээр тавигдсан хөзөр — жаахан тэгш бус налуу нь
+   "гараар шидсэн" мэдрэмж өгнө. Төвөөс хол нь илүү налуу. */
+.pile .card {
+  transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
+}
+
+/* Хөзөр буух талбай — хоосон үед ч төв нь мэдрэгдэж байх ёстой */
+.pile::before {
+  content: "";
+  position: absolute;
+  inset: -18px -26px;
+  border-radius: 999px;
+  pointer-events: none;
+  border: 1px dashed rgba(255, 255, 255, 0.06);
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.22), transparent 72%);
+}
+
 .pile:empty::after {
   content: "Ширээ цэвэрхэн";
   color: var(--ink-faint);
   font-size: 13px;
+  letter-spacing: 0.02em;
 }
 
 .banner {
@@ -1223,18 +1286,25 @@ input {
 
 .log {
   list-style: none;
-  margin: 4px 0 0;
-  padding: 0;
+  /* Фетр дээр шууд бичвэл ялгарахгүй — нимгэн шилэн дэвсгэр өгнө */
+  margin: 10px auto 0;
+  padding: 7px 14px;
   display: grid;
   gap: 3px;
   justify-items: center;
   max-width: 420px;
   font-size: 12.5px;
-  color: var(--ink-faint);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  background: rgba(4, 16, 12, 0.34);
+  border: 1px solid rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
 }
 
 .log li {
-  opacity: 0.45;
+  opacity: 0.5;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1258,9 +1328,15 @@ input {
   height: var(--card-h);
   padding: 7px 8px;
   border: 1px solid var(--card-edge);
-  border-radius: 9px;
-  background: linear-gradient(160deg, #fff, var(--card-face));
-  box-shadow: var(--shadow-2);
+  border-radius: 10px;
+  /* Цаасны мэдрэмж: зөөлөн диагональ гялбаа + ирмэгийн бага зэрэг сүүдэр */
+  background:
+    linear-gradient(152deg, #ffffff 0%, #fdfcf9 42%, var(--card-face) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.2),
+    0 6px 14px -4px rgba(0, 0, 0, 0.45);
   display: grid;
   grid-template-rows: auto 1fr auto;
   flex: none;
@@ -1340,23 +1416,74 @@ input {
 }
 
 .hand .card:hover:not(:disabled) {
-  transform: translateY(-8px);
-  box-shadow: var(--shadow-3);
+  transform: translateY(-10px) scale(1.03);
+  z-index: 3;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 18px 34px -10px rgba(0, 0, 0, 0.7);
 }
 
 .hand .card[data-selected] {
-  transform: translateY(-18px);
+  transform: translateY(-22px);
+  z-index: 4;
   border-color: var(--accent);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 0 0 2px var(--accent),
-    var(--shadow-3);
+    0 0 22px -4px rgba(53, 210, 154, 0.75),
+    0 20px 34px -12px rgba(0, 0, 0, 0.75);
 }
 
 .hand .card[data-hint] {
   border-color: var(--gold);
   box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
     0 0 0 2px var(--gold),
-    var(--shadow-2);
+    0 0 20px -4px rgba(231, 194, 106, 0.7),
+    0 10px 20px -8px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Гараа НУМ хэлбэрээр барих ──────────────────────
+   Хөзрийг жаахан давхарлаж, төвөөс хол байх тусам илүү налуулна —
+   жинхэнэ гартаа барьсан мэдрэмж төрүүлнэ. Зөвхөн ӨРГӨН дэлгэц дээр:
+   утсан дээр гар мөр таслан буудаг тул нум нь эвдэрнэ. */
+@media (min-width: 760px) and (min-height: 620px) {
+  .hand {
+    gap: 0;
+    padding-top: 24px;
+    /* Нумын гүнийг js/ui.js хэмжиж өгнө */
+    padding-bottom: calc(var(--fan-depth, 0px) + 6px);
+  }
+
+  .hand .card {
+    margin-inline: -3px;
+    /* --tilt ба --lift-ийг js/ui.js бодож өгнө */
+    transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
+  }
+
+  /* Сонгосон/хулганы доорх хөзөр нумаас САЛЖ үсрэхгүй — налуугаа
+     хадгалж, зөвхөн дээшээ гарч ирнэ. */
+  .hand .card:hover:not(:disabled) {
+    transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--lift, 0px) - 12px)) scale(1.04);
+  }
+
+  .hand .card[data-selected] {
+    transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--lift, 0px) - 26px));
+  }
+
+  .hand .card[data-selected]:hover {
+    transform: rotate(var(--tilt, 0deg)) translateY(calc(var(--lift, 0px) - 34px)) scale(1.04);
+  }
+
+  /* Хөрш хөзрийн ирмэг тодрох — давхарласан үед ялгагдана */
+  .hand .card::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    pointer-events: none;
+    box-shadow: inset -1px 0 0 rgba(0, 0, 0, 0.07);
+  }
 }
 
 .hand .card:disabled {
@@ -2252,9 +2379,12 @@ input {
 .play-preview {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 12px;
-  margin: 10px 0 2px;
-  padding: 8px 12px;
+  width: fit-content;
+  max-width: 100%;
+  margin: 10px auto 2px;
+  padding: 8px 14px;
   border: 1px solid rgba(53, 210, 154, 0.28);
   border-radius: var(--r-md);
   background: rgba(53, 210, 154, 0.07);
@@ -2284,7 +2414,7 @@ input {
 .play-preview__cards {
   display: flex;
   gap: 4px;
-  flex: 1;
+  flex: 0 1 auto;
   min-width: 0;
   overflow-x: auto;
   scrollbar-width: none;

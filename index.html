@@ -20,16 +20,19 @@
     <style>
       [hidden] { display: none !important; }
 
-      .hand[data-dealing] .card {
-        animation: dealToHand 460ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+      /* Тараалтын анимац нь ШИНЭЭР үүссэн хөзөрт л хамаарна.
+         Өмнө нь `data-dealing` тэмдэглэгээнээс хамаардаг байсан бөгөөд
+         хоёр асуудалтай байв: (1) `both` горим нь дуусахдаа transform-ыг
+         МӨНХӨД тогтоож, гарыг нум болгох боломжийг хаадаг; (2) дараагийн
+         дүрслэлд тэмдэглэгээ арилахад анимац дундаа тасардаг. */
+      .hand .card[data-fresh] {
+        animation: dealToHand 460ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
         animation-delay: calc(var(--deal-index, 0) * 34ms);
-        transform-origin: 50% 120%;
       }
 
-      .mini-hand[data-dealing] .card-back {
-        animation: dealBack 360ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+      .mini-hand .card-back[data-fresh] {
+        animation: dealBack 360ms cubic-bezier(0.22, 0.61, 0.36, 1) backwards;
         animation-delay: calc(var(--deal-index, 0) * 15ms);
-        transform-origin: 50% 120%;
       }
 
       .lb-row {
@@ -115,9 +118,11 @@
           opacity: 1;
           transform: translate3d(calc((6 - var(--deal-index, 0)) * 2px), 7px, 0) rotate(2deg) scale(1.02);
         }
+        /* Төгсгөл нь нумын байрлалтай ЯГ таарна — эс бөгөөс анимац
+           дуусахад хөзөр үсэрнэ. --tilt/--lift-ийг js/ui.js өгнө. */
         to {
           opacity: 1;
-          transform: translate3d(0, 0, 0) rotate(0deg) scale(1);
+          transform: rotate(var(--tilt, 0deg)) translateY(var(--lift, 0px));
         }
       }
 
@@ -168,8 +173,8 @@
       }
 
       @media (prefers-reduced-motion: reduce) {
-        .hand[data-dealing] .card,
-        .mini-hand[data-dealing] .card-back {
+        .hand .card[data-fresh],
+        .mini-hand .card-back[data-fresh] {
           animation: none !important;
         }
       }

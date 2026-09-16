@@ -954,7 +954,7 @@ function handleRoundEnd() {
   const body = document.createElement("div");
 
   if (game.phase === PHASE.GAME_END) {
-    const won = game.gameWinner?.id === game.players[app.myIndex].id;
+    const won = Boolean(game.gameWinner) && game.gameWinner.id === game.players[app.myIndex].id;
     body.appendChild(matchSummaryNode(won));
     body.appendChild(roundResultTable(outcome, game.players));
     recordGameResult(game, won);
@@ -963,7 +963,12 @@ function handleRoundEnd() {
       setDashboardContext({ inGame: false });
     }
     openModal({
-      title: won ? "🏆 Та тоглоомыг яллаа!" : `${game.gameWinner?.name} яллаа`,
+      // Ялагчгүй дуусах нь бий: ганцаараа bot-той тоглоод 30 оноо цуглуулах
+      title: won
+        ? "🏆 Та тоглоомыг яллаа!"
+        : game.gameWinner
+          ? `${game.gameWinner.name} яллаа`
+          : "Та хожигдлоо",
       body,
       actions: [
         { label: "Lobby руу", onClick: exitGame },
