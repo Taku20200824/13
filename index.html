@@ -192,6 +192,8 @@
     </style>
   </head>
   <body>
+    <button class="btn btn--ghost lang-toggle" id="langToggle" type="button">EN</button>
+
     <!-- ══════════ Нэвтрэх ══════════ -->
     <section class="screen screen--auth" id="screenAuth" data-active>
       <div class="auth-card">
@@ -202,8 +204,8 @@
             <span class="brand-card black">♣</span>
             <span class="brand-card red">♦</span>
           </div>
-          <h1>13 Хөзөр</h1>
-          <p>Монгол дүрмээр 4 хүнтэй тоглоно</p>
+          <h1 data-i18n="app.title">13 Хөзөр</h1>
+          <p data-i18n="auth.tagline">Монгол дүрмээр 4 хүнтэй тоглоно</p>
         </div>
 
         <div class="auth-actions">
@@ -214,30 +216,31 @@
               <path fill="#FBBC05" d="M5.6 14.7a7.2 7.2 0 0 1 0-4.6v-3H1.8a12 12 0 0 0 0 10.6l3.8-3z"/>
               <path fill="#EA4335" d="M12 4.8c1.7 0 3.2.6 4.4 1.7l3.2-3.2A11.5 11.5 0 0 0 12 0 12 12 0 0 0 1.8 6.1l3.8 3C6.5 6.7 9 4.8 12 4.8z"/>
             </svg>
-            Google-ээр нэвтрэх
+            <span data-i18n="auth.google">Google-ээр нэвтрэх</span>
           </button>
 
-          <div class="auth-divider"><span>эсвэл</span></div>
+          <div class="auth-divider"><span data-i18n="auth.or">эсвэл</span></div>
 
           <form class="guest-form" id="guestForm">
             <label class="field">
-              <span>Зочин нэр</span>
+              <span data-i18n="auth.guestNameLabel">Зочин нэр</span>
               <input
                 id="guestName"
                 type="text"
                 maxlength="16"
                 autocomplete="nickname"
                 placeholder="Жишээ: Болд"
+                data-i18n-placeholder="auth.guestNamePlaceholder"
                 required
               />
             </label>
-            <button class="btn btn--ghost" type="submit">Зочноор орох</button>
+            <button class="btn btn--ghost" type="submit" data-i18n="auth.guestSubmit">Зочноор орох</button>
           </form>
         </div>
 
         <p class="auth-note" id="authNote"></p>
 
-        <div class="theme-picker" data-theme-picker role="group" aria-label="Горим"></div>
+        <div class="theme-picker" data-theme-picker role="group" data-i18n-aria-label="theme.group" aria-label="Горим"></div>
       </div>
     </section>
 
@@ -246,33 +249,33 @@
       <header class="topbar">
         <div class="brand">
           <span class="brand-mark" aria-hidden="true">13</span>
-          <strong>Хөзөр</strong>
+          <strong data-i18n="app.brandWord">Хөзөр</strong>
         </div>
         <div class="topbar-right">
-          <div class="theme-picker" data-theme-picker role="group" aria-label="Горим"></div>
+          <div class="theme-picker" data-theme-picker role="group" data-i18n-aria-label="theme.group" aria-label="Горим"></div>
           <div class="account" id="account"></div>
         </div>
       </header>
 
-      <section class="stat-strip" aria-label="Шууд үзүүлэлт">
+      <section class="stat-strip" aria-label="Шууд үзүүлэлт" data-i18n-aria-label="aria.liveStats">
         <div class="stat">
           <span class="stat-num" id="statOnline">—</span>
-          <span class="stat-label">Онлайн тоглогч</span>
+          <span class="stat-label" data-i18n="stats.online">Онлайн тоглогч</span>
           <small id="statOnlineSub"></small>
         </div>
         <div class="stat">
           <span class="stat-num" id="statPublicRooms">—</span>
-          <span class="stat-label">Public өрөө</span>
+          <span class="stat-label" data-i18n="stats.publicRooms">Public өрөө</span>
           <small id="statPublicSub"></small>
         </div>
         <div class="stat">
           <span class="stat-num" id="statPrivateRooms">—</span>
-          <span class="stat-label">Private өрөө</span>
+          <span class="stat-label" data-i18n="stats.privateRooms">Private өрөө</span>
           <small id="statPrivateSub"></small>
         </div>
         <div class="stat">
           <span class="stat-num" id="statRunning">—</span>
-          <span class="stat-label">Явагдаж буй тоглоом</span>
+          <span class="stat-label" data-i18n="stats.running">Явагдаж буй тоглоом</span>
           <small id="statRunningSub"></small>
         </div>
       </section>
@@ -280,59 +283,59 @@
       <main class="lobby">
         <div class="lobby-main">
           <section class="panel panel--play">
-            <h2>Тоглох</h2>
+            <h2 data-i18n="play.heading">Тоглох</h2>
             <div class="play-grid">
               <button class="play-card" id="btnPlayBots" type="button">
                 <span class="play-icon" aria-hidden="true">🤖</span>
-                <strong>Bot-той тоглох</strong>
-                <small>Шууд эхэлнэ · 3 bot</small>
+                <strong data-i18n="play.vsBots">Bot-той тоглох</strong>
+                <small data-i18n="play.vsBotsSub">Шууд эхэлнэ · 3 bot</small>
               </button>
               <button class="play-card" id="btnCreateRoom" type="button">
                 <span class="play-icon" aria-hidden="true">✚</span>
-                <strong>Өрөө үүсгэх</strong>
-                <small>Public эсвэл private host</small>
+                <strong data-i18n="play.createRoom">Өрөө үүсгэх</strong>
+                <small data-i18n="play.createRoomSub">Public эсвэл private host</small>
               </button>
             </div>
 
-            <div class="host-options" role="radiogroup" aria-label="Bot-ын хүч">
+            <div class="host-options" role="radiogroup" aria-label="Bot-ын хүч" data-i18n-aria-label="aria.botStrength">
               <label class="host-option">
                 <input type="radio" name="botLevel" value="expert" checked />
-                <span><b>Мастер AI</b><small>Нүүдлээ тоглуулж үзэж шалгана</small></span>
+                <span><b data-i18n="bot.expert">Мастер AI</b><small data-i18n="bot.expertDesc">Нүүдлээ тоглуулж үзэж шалгана</small></span>
               </label>
               <label class="host-option">
                 <input type="radio" name="botLevel" value="hard" />
-                <span><b>Хүчтэй AI</b><small>Төлөвлөгөө гаргаж, хөзөр тоолно</small></span>
+                <span><b data-i18n="bot.hard">Хүчтэй AI</b><small data-i18n="bot.hardDesc">Төлөвлөгөө гаргаж, хөзөр тоолно</small></span>
               </label>
               <label class="host-option">
                 <input type="radio" name="botLevel" value="normal" />
-                <span><b>Энгийн AI</b><small>Сурч байгаа хүнд тохиромжтой</small></span>
+                <span><b data-i18n="bot.normal">Энгийн AI</b><small data-i18n="bot.normalDesc">Сурч байгаа хүнд тохиромжтой</small></span>
               </label>
             </div>
 
-            <div class="host-options" role="radiogroup" aria-label="Өрөөний төрөл">
+            <div class="host-options" role="radiogroup" aria-label="Өрөөний төрөл" data-i18n-aria-label="aria.roomType">
               <label class="host-option">
                 <input type="radio" name="roomVisibility" value="public" checked />
-                <span><b>Public</b><small>Lobby дээр харагдана</small></span>
+                <span><b data-i18n="room.publicLabel">Public</b><small data-i18n="room.publicDesc">Lobby дээр харагдана</small></span>
               </label>
               <label class="host-option">
                 <input type="radio" name="roomVisibility" value="private" />
-                <span><b>Private</b><small>Зөвхөн кодоор орно</small></span>
+                <span><b data-i18n="room.privateLabel">Private</b><small data-i18n="room.privateDesc">Зөвхөн кодоор орно</small></span>
               </label>
             </div>
 
             <section class="public-rooms" aria-labelledby="publicRoomsTitle">
               <div class="panel-head panel-head--compact">
-                <h3 id="publicRoomsTitle">Public өрөө</h3>
-                <button class="link" id="btnRefreshPublicRooms" type="button">Шинэчлэх</button>
+                <h3 id="publicRoomsTitle" data-i18n="room.publicRoomsHeading">Public өрөө</h3>
+                <button class="link" id="btnRefreshPublicRooms" type="button" data-i18n="common.refresh">Шинэчлэх</button>
               </div>
               <ul class="public-room-list" id="publicRooms">
-                <li class="social-empty">Ачаалж байна...</li>
+                <li class="social-empty" data-i18n="common.loading">Ачаалж байна...</li>
               </ul>
             </section>
 
             <form class="join-form" id="joinForm">
               <label class="field">
-                <span>Өрөөний код</span>
+                <span data-i18n="room.codeLabel">Өрөөний код</span>
                 <input
                   id="joinCode"
                   type="text"
@@ -342,42 +345,42 @@
                   autocomplete="off"
                 />
               </label>
-              <button class="btn" type="submit">Нэгдэх</button>
+              <button class="btn" type="submit" data-i18n="room.join">Нэгдэх</button>
             </form>
             <p class="hint" id="lobbyHint"></p>
           </section>
 
           <section class="panel panel--chat">
             <div class="panel-head">
-              <h2>Нийтийн chat</h2>
+              <h2 data-i18n="chat.publicHeading">Нийтийн chat</h2>
             </div>
             <ul class="chat-list" id="publicChatList">
-              <li class="social-empty">Ачаалж байна...</li>
+              <li class="social-empty" data-i18n="common.loading">Ачаалж байна...</li>
             </ul>
             <form class="chat-form" id="publicChatForm">
               <input id="publicChatInput" type="text" maxlength="180" placeholder="Message..." autocomplete="off" />
-              <button class="btn btn--small btn--primary" type="submit">Илгээх</button>
+              <button class="btn btn--small btn--primary" type="submit" data-i18n="common.send">Илгээх</button>
             </form>
           </section>
 
           <section class="panel panel--rules">
-            <h2>Дүрэм</h2>
+            <h2 data-i18n="rules.heading">Дүрэм</h2>
             <dl class="rules-list">
               <div>
-                <dt>Өнгө</dt>
-                <dd>гил ♠ &gt; бундан ♥ &gt; цэцэг ♣ &gt; дөрвөлжин ♦</dd>
+                <dt data-i18n="rules.suitLabel">Өнгө</dt>
+                <dd data-i18n="rules.suitOrder">гил ♠ &gt; бундан ♥ &gt; цэцэг ♣ &gt; дөрвөлжин ♦</dd>
               </div>
               <div>
-                <dt>Тоо</dt>
+                <dt data-i18n="rules.rankLabel">Тоо</dt>
                 <dd>3 4 5 6 7 8 9 10 J Q K A 2</dd>
               </div>
               <div>
-                <dt>Хослол</dt>
-                <dd>нэг · хос · сет · страйт · флаш · фүл хаус · покер · страйт флаш</dd>
+                <dt data-i18n="rules.comboLabel">Хослол</dt>
+                <dd data-i18n="rules.comboList">нэг · хос · сет · страйт · флаш · фүл хаус · покер · страйт флаш</dd>
               </div>
               <div>
-                <dt>Оноо</dt>
-                <dd>
+                <dt data-i18n="rules.scoreLabel">Оноо</dt>
+                <dd data-i18n-html="rules.scoreDesc">
                   Үлдсэн хөзөр = оноо. 10+ бол ×2, 13 бол ×3.
                   <strong>30 оноо → хасагдана.</strong>
                 </dd>
@@ -389,10 +392,10 @@
         <aside class="panel panel--rank">
           <div class="panel-head">
             <h2>Ranking</h2>
-            <button class="link" id="btnRefreshRank" type="button">Шинэчлэх</button>
+            <button class="link" id="btnRefreshRank" type="button" data-i18n="common.refresh">Шинэчлэх</button>
           </div>
           <ol class="leaderboard" id="leaderboard">
-            <li class="lb-empty">Ачаалж байна…</li>
+            <li class="lb-empty" data-i18n="rank.loading">Ачаалж байна…</li>
           </ol>
         </aside>
       </main>
@@ -401,31 +404,31 @@
     <!-- ══════════ Өрөөнд хүлээх ══════════ -->
     <section class="screen screen--room" id="screenRoom">
       <div class="room-card">
-        <button class="link back" id="btnLeaveRoom" type="button">← Буцах</button>
-        <h2>Өрөө</h2>
+        <button class="link back" id="btnLeaveRoom" type="button" data-i18n="room.back">← Буцах</button>
+        <h2 data-i18n="room.heading">Өрөө</h2>
         <div class="room-code">
           <span id="roomCode">------</span>
-          <button class="btn btn--small" id="btnCopyCode" type="button">Хуулах</button>
+          <button class="btn btn--small" id="btnCopyCode" type="button" data-i18n="common.copy">Хуулах</button>
         </div>
-        <p class="hint">Public өрөө lobby дээр харагдана. Private бол зөвхөн кодоор орно.</p>
+        <p class="hint" data-i18n="room.codeHint">Public өрөө lobby дээр харагдана. Private бол зөвхөн кодоор орно.</p>
         <ul class="seat-list" id="seatList"></ul>
         <div class="room-actions">
           <label class="check">
             <input type="checkbox" id="allowBots" checked />
-            <span>Дутуу суудлыг bot-оор нөхөх</span>
+            <span data-i18n="room.allowBotsLabel">Дутуу суудлыг bot-оор нөхөх</span>
           </label>
-          <button class="btn btn--primary" id="btnStartRoom" type="button" disabled>
+          <button class="btn btn--primary" id="btnStartRoom" type="button" disabled data-i18n="room.start">
             Тоглоом эхлүүлэх
           </button>
         </div>
-        <section class="room-chat" aria-label="Өрөөний chat">
-          <h3>Өрөөний chat</h3>
+        <section class="room-chat" aria-label="Өрөөний chat" data-i18n-aria-label="chat.roomHeading">
+          <h3 data-i18n="chat.roomHeading">Өрөөний chat</h3>
           <ul class="chat-list chat-list--room" id="roomChatList">
-            <li class="social-empty">Chat хоосон байна.</li>
+            <li class="social-empty" data-i18n="chat.empty">Chat хоосон байна.</li>
           </ul>
           <form class="chat-form" id="roomChatForm">
             <input id="roomChatInput" type="text" maxlength="180" placeholder="Message..." autocomplete="off" />
-            <button class="btn btn--small btn--primary" type="submit">Илгээх</button>
+            <button class="btn btn--small btn--primary" type="submit" data-i18n="common.send">Илгээх</button>
           </form>
         </section>
         <p class="hint" id="roomHint"></p>
@@ -435,17 +438,17 @@
     <!-- ══════════ Тоглоом ══════════ -->
     <section class="screen screen--game" id="screenGame">
       <header class="game-top">
-        <button class="link" id="btnExitGame" type="button">← Гарах</button>
+        <button class="link" id="btnExitGame" type="button" data-i18n="game.exit">← Гарах</button>
         <div class="round-meta">
           <span class="chip" id="roundChip">1-р үе</span>
-          <span class="chip chip--muted">Хасагдах оноо: 30</span>
+          <span class="chip chip--muted" data-i18n="game.eliminationScoreChip">Хасагдах оноо: 30</span>
         </div>
-        <button class="chat-toggle" id="btnGameChat" type="button" aria-expanded="false" aria-controls="gameChat" title="Чат" hidden>
+        <button class="chat-toggle" id="btnGameChat" type="button" aria-expanded="false" aria-controls="gameChat" title="Чат" data-i18n-title="chat.title" hidden>
           <span aria-hidden="true">💬</span>
           <span class="chat-toggle__badge" id="gameChatBadge" hidden></span>
         </button>
-        <div class="theme-picker theme-picker--compact" data-theme-picker role="group" aria-label="Горим"></div>
-        <button class="link" id="btnRulesToggle" type="button">Дүрэм</button>
+        <div class="theme-picker theme-picker--compact" data-theme-picker role="group" data-i18n-aria-label="theme.group" aria-label="Горим"></div>
+        <button class="link" id="btnRulesToggle" type="button" data-i18n="rules.toggle">Дүрэм</button>
       </header>
 
       <div class="table-felt">
@@ -459,7 +462,7 @@
               <div class="pile" id="pile" aria-live="polite"></div>
             </div>
             <p class="banner" id="banner" role="status"></p>
-            <ul class="log" id="log" aria-label="Тоглолтын явц"></ul>
+            <ul class="log" id="log" aria-label="Тоглолтын явц" data-i18n-aria-label="aria.gameLog"></ul>
           </div>
         </div>
 
@@ -473,41 +476,41 @@
               </div>
               <span class="seat-badge" id="youStatus" data-kind="wait">хүлээж байна</span>
             </div>
-            <div class="selection" id="selection">Хөзөр сонгоно уу</div>
+            <div class="selection" id="selection" data-i18n="selection.prompt">Хөзөр сонгоно уу</div>
           </div>
 
           <!-- Гаргах хөзөр: зөвхөн сонголт байх үед харагдана.
                Хоосон үед огт зай эзлэхгүй тул товчнууд дэлгэцээс гарахгүй. -->
           <div class="play-preview" id="playPreview" hidden aria-live="polite">
-            <span class="play-preview__label">Гаргах</span>
+            <span class="play-preview__label" data-i18n="preview.label">Гаргах</span>
             <div class="play-preview__cards" id="playPreviewCards"></div>
             <span class="play-preview__combo" id="playPreviewCombo"></span>
           </div>
 
-          <div class="hand" id="hand" aria-label="Таны хөзрүүд"></div>
+          <div class="hand" id="hand" aria-label="Таны хөзрүүд" data-i18n-aria-label="aria.yourHand"></div>
 
           <div class="controls">
-            <button class="btn btn--ghost" id="btnSort" type="button">Эрэмбэ: тоо</button>
+            <button class="btn btn--ghost" id="btnSort" type="button" data-i18n="sort.byRank">Эрэмбэ: тоо</button>
             <button id="btnHint" type="button" hidden style="display: none">Зөвлөх</button>
-            <button class="btn btn--ghost" id="btnClear" type="button">Цуцлах</button>
-            <button class="btn btn--pass" id="btnPass" type="button">Пасс</button>
-            <button class="btn btn--primary" id="btnPlay" type="button">Тавих</button>
+            <button class="btn btn--ghost" id="btnClear" type="button" data-i18n="common.clear">Цуцлах</button>
+            <button class="btn btn--pass" id="btnPass" type="button" data-i18n="game.pass">Пасс</button>
+            <button class="btn btn--primary" id="btnPlay" type="button" data-i18n="game.play">Тавих</button>
           </div>
         </div>
       </div>
 
       <!-- Тоглоом дундах чат — дээд самбарын товчоор нээж/хааж болно. -->
-      <aside class="game-chat" id="gameChat" hidden aria-label="Тоглоомын чат">
+      <aside class="game-chat" id="gameChat" hidden aria-label="Тоглоомын чат" data-i18n-aria-label="aria.gameChat">
         <div class="game-chat__head">
-          <h3>Чат</h3>
-          <button class="link" id="btnGameChatClose" type="button">Хаах</button>
+          <h3 data-i18n="chat.title">Чат</h3>
+          <button class="link" id="btnGameChatClose" type="button" data-i18n="common.close">Хаах</button>
         </div>
         <ul class="chat-list chat-list--room" id="gameChatList">
-          <li class="social-empty">Мессеж алга.</li>
+          <li class="social-empty" data-i18n="chat.none">Мессеж алга.</li>
         </ul>
         <form class="chat-form" id="gameChatForm">
           <input id="gameChatInput" type="text" maxlength="180" placeholder="Message..." autocomplete="off" />
-          <button class="btn btn--small btn--primary" type="submit">Илгээх</button>
+          <button class="btn btn--small btn--primary" type="submit" data-i18n="common.send">Илгээх</button>
         </form>
       </aside>
     </section>
@@ -523,6 +526,10 @@
 
     <div class="toast" id="toast" hidden></div>
 
+    <script type="module">
+      import { initLangToggle } from "./js/i18n.js";
+      initLangToggle("langToggle");
+    </script>
     <script type="module" src="js/main.js"></script>
     <script type="module" src="js/social.js"></script>
   </body>

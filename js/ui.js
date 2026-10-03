@@ -2,6 +2,7 @@
 import { detect } from "./rules.js";
 import { escapeHtml as escapeText } from "./text.js";
 import { pointsLabel, ELIMINATION_SCORE } from "./scoring.js";
+import { t, translateComboLabel } from "./i18n.js";
 
 export const $ = (id) => document.getElementById(id);
 
@@ -57,7 +58,7 @@ export function cardNode(card, { interactive = false } = {}) {
   if (interactive) node.type = "button";
   node.setAttribute(
     "aria-label",
-    `${card.rank} ${card.suitName}`,
+    `${card.rank} ${t(`suit.${card.suit}`)}`,
   );
   // Булангийн тэмдэглэгээ жинхэнэ хөзөр шиг босоо: тоо дээр нь, өнгө доор нь.
   // Гар давхарлагдсан үед энэ л хэсэг харагдана.
@@ -199,7 +200,7 @@ export function renderOpponents(game, myIndex) {
     (node, key) => {
       const player = bySeat.get(key);
       const count = player.handCount ?? player.hand.length;
-      const passLabel = `пасс · ${count}`;
+      const passLabel = t("status.passCount", { count });
       const isTurn = player.index === game.turn && game.phase === "playing";
       const hasPassed = passedSet.has(player.index);
 
@@ -212,13 +213,13 @@ export function renderOpponents(game, myIndex) {
       const bubble = node.querySelector(".action-bubble");
       if (player.eliminated) {
         setData(bubble, "kind", "out");
-        setText(bubble, "хасагдлаа");
+        setText(bubble, t("status.eliminated"));
       } else if (hasPassed) {
         setData(bubble, "kind", "pass");
         setText(bubble, passLabel);
       } else if (player.lastAction?.kind === "play") {
         setData(bubble, "kind", "play");
-        setText(bubble, player.lastAction.label);
+        setText(bubble, translateComboLabel(player.lastAction.label));
       } else {
         setData(bubble, "kind", "idle");
         setText(bubble, "");
@@ -226,15 +227,15 @@ export function renderOpponents(game, myIndex) {
 
       updateAvatar(node.querySelector(".avatar"), player);
       setText(node.querySelector(".seat-who strong"), player.name);
-      setText(node.querySelector(".seat-who small"), `${player.score} оноо`);
+      setText(node.querySelector(".seat-who small"), t("common.pointsValue", { score: player.score }));
 
       const badge = node.querySelector(".seat-badge");
       if (player.eliminated) {
         setData(badge, "kind", "out");
-        setText(badge, "хасагдсан");
+        setText(badge, t("status.eliminatedBadge"));
       } else if (isTurn) {
         setData(badge, "kind", "turn");
-        setText(badge, "ээлж");
+        setText(badge, t("status.turnBadge"));
       } else if (hasPassed) {
         setData(badge, "kind", "pass");
         setText(badge, passLabel);
@@ -280,7 +281,7 @@ export function renderPile(game) {
   }
 
   const player = game.players[game.tableOwner];
-  const comboName = game.table.label.split(" (")[0];
+  const comboName = translateComboLabel(game.table.label).split(" (")[0];
   // Бүтэц нь бүрэн эсэхийг шалгана — дутуу бол дахин барина
   let chip = owner.querySelector(".pile-chip");
   if (!chip || !chip.querySelector("b") || !chip.querySelector("span")) {
@@ -291,7 +292,7 @@ export function renderPile(game) {
     owner.appendChild(chip);
   }
   setText(chip.querySelector("b"), player?.name ?? "");
-  setText(chip.querySelector("span"), ` тавив · ${comboName}`);
+  setText(chip.querySelector("span"), t("pile.playedVerb", { combo: comboName }));
 
   const cards = new Map(game.table.cards.map((c) => [c.id, c]));
   reconcile(
@@ -377,7 +378,7 @@ export function renderPlayPreview(game, myIndex, selected) {
   );
 
   const found = detect(chosen);
-  setText(combo, found ? found.label.split(" (")[0] : "хослол биш");
+  setText(combo, found ? t(`combo.${found.type}`) : t("combo.invalid"));
   setData(combo, "state", found ? "ok" : "bad");
 }
 
@@ -390,7 +391,7 @@ export function renderSelection(game, myIndex, selected) {
 
   if (cards.length === 0) {
     node.hidden = false;
-    node.textContent = "Хөзөр сонгоно уу";
+    node.textContent = t("selection.prompt");
     return;
   }
   // Сонголт байгаа үед preview самбар мэдээллийг харуулна — давхардуулахгүй
@@ -400,9 +401,9 @@ export function renderSelection(game, myIndex, selected) {
 
 export function renderStatus(game, myIndex) {
   const me = game.players[myIndex];
-  $("roundChip").textContent = `${game.round}-р үе`;
+  $("roundChip").textContent = t("status.round", { round: game.round });
   $("youName").textContent = me.name;
-  $("youScore").textContent = `${me.score} оноо · ${me.hand.length} хөзөр`;
+  $("youScore").textContent = t("status.scoreCards", { score: me.score, cards: me.hand.length });
   const avatar = $("youAvatar");
   avatar.textContent = initials(me.name);
 
@@ -415,16 +416,16 @@ export function renderStatus(game, myIndex) {
   const status = $("youStatus");
   if (me.eliminated) {
     status.dataset.kind = "out";
-    status.textContent = "хасагдсан";
+    status.textContent = t("status.eliminatedBadge");
   } else if (myTurn) {
     status.dataset.kind = "turn";
-    status.textContent = "таны ээлж";
+    status.textContent = t("status.yourTurn");
   } else if (passedSet.has(myIndex)) {
     status.dataset.kind = "pass";
-    status.textContent = `пасс · ${me.hand.length}`;
+    status.textContent = t("status.passCount", { count: me.hand.length });
   } else {
     status.dataset.kind = "wait";
-    status.textContent = "хүлээж байна";
+    status.textContent = t("status.waiting");
   }
 
   $("btnPlay").disabled = !myTurn;
@@ -463,7 +464,7 @@ export function roundResultTable(outcome, players) {
   table.className = "result-table";
   table.innerHTML = `
     <thead>
-      <tr><th>Тоглогч</th><th>Үлдсэн</th><th>Оноо</th><th>Нийт</th></tr>
+      <tr><th>${t("table.player")}</th><th>${t("table.left")}</th><th>${t("table.points")}</th><th>${t("table.total")}</th></tr>
     </thead>`;
   const body = document.createElement("tbody");
 
@@ -475,7 +476,7 @@ export function roundResultTable(outcome, players) {
       if (outcome.eliminated.includes(r.id)) row.setAttribute("data-out", "");
       const eliminated = outcome.eliminated.includes(r.id);
       row.innerHTML = `
-        <td>${escapeText(players[r.id]?.name ?? r.name)}${eliminated ? " · хасагдлаа" : ""}</td>
+        <td>${escapeText(players[r.id]?.name ?? r.name)}${eliminated ? ` · ${t("status.eliminated")}` : ""}</td>
         <td>${r.cardsLeft}</td>
         <td class="result-calc">${pointsLabel(r.cardsLeft)}</td>
         <td>${r.scoreAfter}</td>`;

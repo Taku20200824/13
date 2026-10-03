@@ -1,6 +1,7 @@
 import * as fb from "./firebase.js";
 import { seatCount } from "./seats.js";
 import { escapeHtml } from "./text.js";
+import { t, onLangChange } from "./i18n.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -10,6 +11,8 @@ let publicChatUnsub = null;
 let roomChatUnsub = null;
 let activeRoomChatCode = null;
 let roomChatSeen = 0; // тоглоомын чат хаалттай үед уншаагүй мессежийг тоолно
+let lastPublicRooms = [];
+let lastChats = new Map(); // listId -> messages, хэл сольсон үед дахин render хийхэд
 
 function joinByCode(code) {
   const input = $("joinCode");
@@ -20,10 +23,11 @@ function joinByCode(code) {
 }
 
 function renderPublicRooms(rooms) {
+  lastPublicRooms = rooms;
   const list = $("publicRooms");
   if (!list) return;
   if (!rooms.length) {
-    list.innerHTML = '<li class="social-empty">Одоогоор public өрөө алга.</li>';
+    list.innerHTML = `<li class="social-empty">${t("room.noPublicRooms")}</li>`;
     return;
   }
   list.innerHTML = "";
@@ -34,10 +38,10 @@ function renderPublicRooms(rooms) {
     li.className = "public-room";
     li.innerHTML = `
       <div>
-        <strong>${escapeHtml(host?.name ?? "Хост")}</strong>
-        <small>${filled}/4 хүн · ${room.allowBots ? "bot зөвшөөрнө" : "зөвхөн хүн"}</small>
+        <strong>${escapeHtml(host?.name ?? t("common.host"))}</strong>
+        <small>${t("room.filledSlash", { filled })} · ${room.allowBots ? t("room.botsAllowed") : t("room.humansOnly")}</small>
       </div>
-      <button class="btn btn--small" type="button" data-code="${escapeHtml(room.code)}">Орох</button>`;
+      <button class="btn btn--small" type="button" data-code="${escapeHtml(room.code)}">${t("room.enter")}</button>`;
     li.querySelector("button")?.addEventListener("click", () => joinByCode(room.code));
     list.appendChild(li);
   });
@@ -69,10 +73,11 @@ function chatTimeFull(ms) {
 }
 
 function renderChat(listId, messages) {
+  lastChats.set(listId, messages);
   const list = $(listId);
   if (!list) return;
   if (!messages.length) {
-    list.innerHTML = '<li class="social-empty">Chat хоосон байна.</li>';
+    list.innerHTML = `<li class="social-empty">${t("chat.empty")}</li>`;
     return;
   }
   list.innerHTML = "";
@@ -85,7 +90,7 @@ function renderChat(listId, messages) {
       ? `<time class="chat-time" datetime="${new Date(ms).toISOString()}" title="${chatTimeFull(ms)}">${timeLabel}</time>`
       : "";
     li.innerHTML = `
-      <strong>${escapeHtml(message.name ?? "Зочин")}</strong>
+      <strong>${escapeHtml(message.name ?? t("common.guestName"))}</strong>
       <span>${escapeHtml(message.text ?? "")}</span>${timeHtml}`;
     list.appendChild(li);
   });
@@ -114,12 +119,18 @@ function showChatError(error, listId) {
     if (!list) return;
     const li = document.createElement("li");
     li.className = "social-empty";
-    li.textContent = error.message;
+    li.textContent = translateThrottleMessage(error.message);
     list.appendChild(li);
     setTimeout(() => li.remove(), 2000);
     return;
   }
   console.error(error);
+}
+
+/** firebase.js-ийн ChatThrottleError мессеж ("Түр хүлээнэ үү (Xс)") EN горимд орчуулна. */
+function translateThrottleMessage(message) {
+  const match = /^Түр хүлээнэ үү \((.+)с\)$/.exec(message ?? "");
+  return match ? t("chat.throttle", { sec: match[1] }) : message;
 }
 
 function wireSocialEvents() {
@@ -181,7 +192,7 @@ export function setActiveRoom(code) {
   roomChatSeen = 0;
   ["roomChatList", "gameChatList"].forEach((id) => {
     const list = $(id);
-    if (list) list.innerHTML = '<li class="social-empty">Мессеж алга.</li>';
+    if (list) list.innerHTML = `<li class="social-empty">${t("chat.none")}</li>`;
   });
   updateGameChatBadge(0);
   // Чат товч зөвхөн онлайн өрөөнд харагдана (bot-той офлайн тоглолтод хэрэггүй).
@@ -231,6 +242,11 @@ function closeGameChat() {
   drawer.hidden = true;
   $("btnGameChat")?.setAttribute("aria-expanded", "false");
 }
+
+onLangChange(() => {
+  renderPublicRooms(lastPublicRooms);
+  lastChats.forEach((messages, listId) => renderChat(listId, messages));
+});
 
 async function bootSocial() {
   wireSocialEvents();

@@ -10,6 +10,7 @@ import * as fb from "./firebase.js";
 import { humanSeats, seatCount, SEAT_COUNT, toMillis } from "./seats.js";
 import { openModal } from "./ui.js";
 import { escapeHtml } from "./text.js";
+import { t, onLangChange } from "./i18n.js";
 
 const HEARTBEAT_MS = 20_000;
 const ROOM_STALE_MS = 5 * 60_000; // 5 минут хөдөлгөөнгүй өрөөг амьд гэж тооцохгүй
@@ -121,10 +122,10 @@ function render() {
   set("statPublicRooms", s.publicRooms);
   set("statPrivateRooms", s.privateRooms);
   set("statRunning", s.running);
-  setText("statOnlineSub", `${s.seated} тоглож байна`);
-  setText("statPublicSub", s.waiting ? `${s.openSeats} суудал сул` : "сул суудал алга");
-  setText("statPrivateSub", s.privateRooms ? "кодоор орно" : "—");
-  setText("statRunningSub", s.running ? `${s.waiting} өрөө хүлээж байна` : "—");
+  setText("statOnlineSub", t("dash.playingCount", { count: s.seated }));
+  setText("statPublicSub", s.waiting ? t("dash.seatsOpen", { count: s.openSeats }) : t("dash.noOpenSeats"));
+  setText("statPrivateSub", s.privateRooms ? t("dash.byCode") : t("common.dash"));
+  setText("statRunningSub", s.running ? t("dash.roomsWaiting", { count: s.waiting }) : t("common.dash"));
 }
 
 /* ── Онлайн тоглогчдын жагсаалт ─────────────────────
@@ -138,7 +139,7 @@ function wireOnlineList() {
   card.setAttribute("role", "button");
   card.setAttribute("tabindex", "0");
   card.setAttribute("aria-haspopup", "dialog");
-  card.title = "Онлайн тоглогчдыг харах";
+  card.title = t("dash.viewOnlineTitle");
   card.style.cursor = "pointer";
   card.addEventListener("click", showOnlinePlayers);
   card.addEventListener("keydown", (event) => {
@@ -150,9 +151,9 @@ function wireOnlineList() {
 }
 
 function onlineStatus(row) {
-  if (row.inGame) return { label: "тоглож байна", kind: "play" };
-  if (row.roomCode) return { label: "өрөөнд", kind: "room" };
-  return { label: "лобби", kind: "wait" };
+  if (row.inGame) return { label: t("status.playing"), kind: "play" };
+  if (row.roomCode) return { label: t("status.inRoom"), kind: "room" };
+  return { label: t("status.inLobby"), kind: "wait" };
 }
 
 function showOnlinePlayers() {
@@ -169,13 +170,13 @@ function showOnlinePlayers() {
   if (!rows.length) {
     const li = document.createElement("li");
     li.className = "social-empty";
-    li.textContent = "Одоогоор онлайн хүн алга.";
+    li.textContent = t("dash.noOnePlaying");
     list.appendChild(li);
   } else {
     rows.forEach((row) => {
       const status = onlineStatus(row);
       const isSelf = row.uid && row.uid === context.uid;
-      const name = escapeHtml(row.name ?? "Зочин") + (isSelf ? " (та)" : "");
+      const name = escapeHtml(row.name ?? t("common.guestName")) + (isSelf ? ` (${t("common.you")})` : "");
       const li = document.createElement("li");
       li.className = "online-row";
       li.innerHTML = `<span class="online-name">${name}</span>` +
@@ -185,14 +186,19 @@ function showOnlinePlayers() {
   }
 
   openModal({
-    title: `Онлайн тоглогч · ${rows.length}`,
+    title: t("dash.onlineTitle", { count: rows.length }),
     body: list,
-    actions: [{ label: "Хаах", primary: true }],
+    actions: [{ label: t("common.close"), primary: true }],
   });
 }
 
+onLangChange(() => {
+  if (context.uid) render();
+  else renderOffline();
+});
+
 function renderOffline() {
-  ["statOnline", "statPublicRooms", "statPrivateRooms", "statRunning"].forEach((id) => setText(id, "—"));
+  ["statOnline", "statPublicRooms", "statPrivateRooms", "statRunning"].forEach((id) => setText(id, t("common.dash")));
   ["statOnlineSub", "statPublicSub", "statPrivateSub", "statRunningSub"].forEach((id) => setText(id, ""));
 }
 

@@ -140,6 +140,7 @@ button {
   cursor: pointer;
 }
 
+
 input {
   font: inherit;
 }
@@ -3165,4 +3166,32 @@ input {
 [data-theme="code"] .theme-picker,
 [data-theme="code"] .theme-option {
   border-radius: 5px;
+}
+/* Language toggle — fixed top-right on every screen. Declared last (and
+   with every box property spelled out) so it wins over the generic .btn
+   padding regardless of class/source order. Headers that run edge-to-edge
+   (.topbar, .game-top) get extra right padding so their own rightmost
+   button (account/sign-out, Rules) stays clickable underneath it. */
+.lang-toggle {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 60;
+  padding: 6px 10px;
+  min-height: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.topbar,
+.game-top {
+  padding-right: 64px;
+}
+
+@media (max-width: 700px) {
+  .topbar,
+  .game-top {
+    padding-right: 56px;
+  }
 }

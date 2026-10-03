@@ -44,6 +44,7 @@ import {
   setBanner,
   roundResultTable,
 } from "./ui.js";
+import { t, translateEngineError, translateComboLabel, onLangChange } from "./i18n.js";
 
 const BOT_NAMES = ["Болд", "Саруул", "Номин", "Дорж", "Оюун", "Тэмүүлэн"];
 const HOST_WARN_MS = 22_000;
@@ -74,13 +75,23 @@ const app = {
 initAnalytics();
 boot();
 
+// Хэл сольсон үед харагдаж байгаа дэлгэцийн динамик текстийг дахин зурна.
+// Статик HTML текстийг i18n.js өөрөө шинэчилдэг тул энд зөвхөн JS-ээр
+// бүтээгдсэн хэсгүүдийг л дахин render хийх шаардлагатай.
+onLangChange(() => {
+  mountThemePickers();
+  if (app.user) renderAccount();
+  if (app.room) renderRoom(app.room);
+  if (app.game) draw();
+  loadLeaderboard();
+});
+
 async function boot() {
   wireEvents();
 
   if (!fb.online) {
     $("btnGoogle").disabled = true;
-    $("authNote").textContent =
-      "Firebase тохиргоо ороогүй байна — одоогоор bot-той офлайн тоглоно.";
+    $("authNote").textContent = t("auth.noFirebase");
     showScreen("auth");
     return;
   }
@@ -89,7 +100,7 @@ async function boot() {
     await fb.initFirebase();
   } catch (error) {
     console.error(error);
-    $("authNote").textContent = "Firebase-д холбогдож чадсангүй.";
+    $("authNote").textContent = t("auth.connectFailed");
     showScreen("auth");
     return;
   }
@@ -120,7 +131,7 @@ async function boot() {
       return null;
     });
     if (activeRoom && !app.roomCode) {
-      toast(`Өрөө ${activeRoom.code ?? activeRoom.id} рүү буцааж холболоо.`);
+      toast(t("room.reconnected", { code: activeRoom.code ?? activeRoom.id }));
       enterRoom(activeRoom.code ?? activeRoom.id);
       return;
     }
@@ -149,8 +160,7 @@ function wireEvents() {
       app.user = { uid: "local", displayName: name, photoURL: null, isAnonymous: true };
       renderAccount();
       showScreen("lobby");
-      $("leaderboard").innerHTML =
-        '<li class="lb-empty">Ranking-д Firebase тохиргоо шаардлагатай.</li>';
+      $("leaderboard").innerHTML = `<li class="lb-empty">${t("rank.needsFirebase")}</li>`;
       return;
     }
     try {
@@ -223,12 +233,12 @@ function renderAccount() {
   }
   const meta = document.createElement("div");
   meta.className = "account-meta";
-  meta.innerHTML = `<strong>${escapeHtml(app.user.displayName ?? "Зочин")}</strong><small>${
-    app.user.isAnonymous ? "зочин" : "Google"
+  meta.innerHTML = `<strong>${escapeHtml(app.user.displayName ?? t("common.guestName"))}</strong><small>${
+    app.user.isAnonymous ? t("account.guest") : "Google"
   }</small>`;
   const out = document.createElement("button");
   out.className = "link";
-  out.textContent = "Гарах";
+  out.textContent = t("common.signOut");
   out.addEventListener("click", async () => {
     if (fb.online) await fb.signOutUser();
     app.user = null;
@@ -242,11 +252,11 @@ function renderAccount() {
 async function loadLeaderboard() {
   if (!fb.online) return;
   const list = $("leaderboard");
-  list.innerHTML = '<li class="lb-empty">Ачаалж байна…</li>';
+  list.innerHTML = `<li class="lb-empty">${t("rank.loading")}</li>`;
   try {
     const rows = await fb.fetchLeaderboard(20);
     if (rows.length === 0) {
-      list.innerHTML = '<li class="lb-empty">Одоогоор бүртгэл алга.</li>';
+      list.innerHTML = `<li class="lb-empty">${t("rank.empty")}</li>`;
       return;
     }
     list.innerHTML = "";
@@ -259,14 +269,14 @@ async function loadLeaderboard() {
       if (app.user && row.uid === app.user.uid) li.setAttribute("data-me", "");
       li.innerHTML = `
         <span class="lb-pos">${i < 3 ? ["1", "2", "3"][i] : i + 1}</span>
-        <span class="lb-name">${escapeHtml(row.displayName ?? "Зочин")}</span>
-        <span class="lb-score">${row.rating ?? 0}<small> оноо · ${row.wins ?? 0}/${row.games ?? 0}</small></span>
+        <span class="lb-name">${escapeHtml(row.displayName ?? t("common.guestName"))}</span>
+        <span class="lb-score">${row.rating ?? 0}<small> ${t("rank.points")} · ${row.wins ?? 0}/${row.games ?? 0}</small></span>
         <span class="lb-detail">win ${winRate}% · avg ${avgPenalty}</span>`;
       list.appendChild(li);
     });
   } catch (error) {
     console.error(error);
-    list.innerHTML = '<li class="lb-empty">Ranking-г уншиж чадсангүй.</li>';
+    list.innerHTML = `<li class="lb-empty">${t("rank.error")}</li>`;
   }
 }
 
@@ -282,7 +292,7 @@ function startLocalGame() {
   app.room = null;
   const bots = BOT_NAMES.slice(0, 3).map((name) => ({ name, isBot: true }));
   app.difficulty = botLevel();
-  app.game = createGame([{ name: app.user?.displayName ?? "Та", isBot: false }, ...bots]);
+  app.game = createGame([{ name: app.user?.displayName ?? t("common.youName"), isBot: false }, ...bots]);
   app.selected.clear();
   showScreen("game");
   draw();
@@ -349,7 +359,7 @@ async function handleJoinRoom(event) {
   if (!requireOnline()) return;
   const code = $("joinCode").value.trim().toUpperCase();
   if (code.length !== 6) {
-    setHint("lobbyHint", "Код 6 тэмдэгттэй байна.", true);
+    setHint("lobbyHint", t("room.codeLength"), true);
     return;
   }
   try {
@@ -378,7 +388,7 @@ function enterRoom(code) {
   app.unsub.push(
     fb.watchRoom(code, (room) => {
       if (!room) {
-        toast("Өрөө хаагдлаа.");
+        toast(t("room.closed"));
         exitToLobby();
         return;
       }
@@ -388,7 +398,7 @@ function enterRoom(code) {
       // Суудлын дугаар нь тогтвортой — массивын байрлал биш, seatIndex
       const seat = seatIndexOf(room.seats, app.user.uid);
       if (seat === -1) {
-        toast("Та өрөөнөөс гарсан байна.");
+        toast(t("room.youLeft"));
         exitToLobby();
         return;
       }
@@ -424,11 +434,11 @@ function startHostWatchdog() {
     if (isHost()) {
       fb.touchHost(app.roomCode);
     } else {
-      if (hostLooksStale()) setBanner("Host холболт шалгаж байна… шилжихэд бэлэн.", "error");
+      if (hostLooksStale()) setBanner(t("host.checking"), "error");
       const claimed = await fb.claimHostIfStale(app.roomCode, app.user.uid);
       if (claimed) {
-        toast("Host шилжлээ — та одоо өрөөг удирдана.");
-        setBanner("Host таны төхөөрөмж дээр сэргэлээ.", "good");
+        toast(t("host.switched"));
+        setBanner(t("host.revived"), "good");
       }
     }
   }, 12_000);
@@ -489,10 +499,10 @@ function renderRoom(room) {
     who.className = "seat-name";
     if (seat) {
       who.innerHTML = `<strong>${escapeHtml(seat.name)}</strong><small>${
-        seat.isBot ? "bot" : seat.uid === app.user?.uid ? "та" : "тоглогч"
+        seat.isBot ? t("seat.bot") : seat.uid === app.user?.uid ? t("seat.you") : t("seat.player")
       }</small>`;
     } else {
-      who.innerHTML = `<strong>Хоосон суудал</strong><small>хүлээж байна</small>`;
+      who.innerHTML = `<strong>${t("seat.empty")}</strong><small>${t("seat.waiting")}</small>`;
     }
     li.appendChild(who);
 
@@ -500,11 +510,11 @@ function renderRoom(room) {
     tag.className = "tag";
     if (seat && room.host === seat.uid) {
       tag.classList.add("tag--host");
-      tag.textContent = "хост";
+      tag.textContent = t("seat.hostTag");
     } else if (seat) {
-      tag.textContent = "бэлэн";
+      tag.textContent = t("seat.readyTag");
     } else {
-      tag.textContent = "—";
+      tag.textContent = t("common.dash");
     }
     li.appendChild(tag);
 
@@ -521,18 +531,18 @@ function renderRoom(room) {
 
   const ready = room.allowBots ? humans >= 1 : filled === SEAT_COUNT;
   $("btnStartRoom").disabled = !host || !ready;
-  $("btnStartRoom").textContent = host ? "Тоглоом эхлүүлэх" : stale ? "Host шилжиж байна…" : "Хостыг хүлээж байна…";
+  $("btnStartRoom").textContent = host ? t("room.start") : stale ? t("host.switching") : t("host.waiting");
   setHint(
     "roomHint",
     stale && !host
-      ? "Host удаан хариулахгүй байна. Систем автоматаар өөр тоглогч руу шилжүүлнэ."
+      ? t("host.staleHint")
       : ready
         ? host
           ? ""
-          : "Host эхлүүлэхийг хүлээж байна."
+          : t("room.waitHost")
         : room.allowBots
-          ? "Bot-оор нөхөөд ганцаараа эхэлж болно."
-          : `${SEAT_COUNT} хүн бүрдэх хүртэл хүлээнэ (одоо ${filled}).`,
+          ? t("room.canStartWithBots")
+          : t("room.waitingForPlayers", { count: SEAT_COUNT, filled }),
     stale && !host,
   );
 }
@@ -619,8 +629,8 @@ async function handleLeaveRoom() {
 function copyCode() {
   navigator.clipboard
     ?.writeText(app.roomCode ?? "")
-    .then(() => toast("Код хуулагдлаа."))
-    .catch(() => toast("Хуулж чадсангүй — гараар хуулна уу."));
+    .then(() => toast(t("room.codeCopied")))
+    .catch(() => toast(t("room.codeCopyFailed")));
 }
 
 /* ══════════ Онлайн тоглоомын төлөв ══════════ */
@@ -651,7 +661,7 @@ function rebuild(room) {
   // Зурахыг зогсоовол бүгд гацна — тиймээс зөвхөн мэдэгдэнэ (draw-ийн ДАРАА,
   // үгүй бол banner тэр даруй дарагдана).
   if (!seatsMatchState(room.seats, room.state)) {
-    setBanner("Тоглогч өрөөнөөс гарсан байна.", "error");
+    setBanner(t("room.playerLeft"), "error");
   }
 
   if (app.game.phase === PHASE.PLAYING && isHost()) scheduleBotChain();
@@ -741,12 +751,12 @@ async function handlePlay() {
   const me = game.players[app.myIndex];
   const cards = me.hand.filter((c) => app.selected.has(c.id));
   if (cards.length === 0) {
-    setBanner("Хөзөр сонгоно уу.", "error");
+    setBanner(t("play.selectCards"), "error");
     return;
   }
   const result = play(game, app.myIndex, cards);
   if (!result.ok) {
-    setBanner(result.error, "error");
+    setBanner(translateEngineError(result.error), "error");
     return;
   }
   app.selected.clear();
@@ -758,7 +768,7 @@ async function handlePlay() {
 async function handlePass() {
   const result = pass(app.game, app.myIndex);
   if (!result.ok) {
-    setBanner(result.error, "error");
+    setBanner(translateEngineError(result.error), "error");
     return;
   }
   app.selected.clear();
@@ -787,14 +797,14 @@ async function commitMove() {
     } else {
       // Өөр хэн нэг нь бидний өмнө бичсэн — сүүлийн байдал руу буцаана
       if (result.reason === "stale" || result.reason === "not-your-turn") {
-        toast("Ээлж өөрчлөгдсөн байна — шинэчиллээ.");
+        toast(t("move.staleRefreshed"));
         if (app.room) rebuild(app.room);
       } else {
-        toast("Нүүдлийг хадгалж чадсангүй.");
+        toast(t("move.saveFailed"));
       }
     }
   } catch (error) {
-    toast("Нүүдлийг хадгалж чадсангүй.");
+    toast(t("move.saveFailed"));
     console.error(error);
   }
 }
@@ -805,20 +815,20 @@ function handleHint() {
   const required = game.mustPlayStartingCard ? game.startingCardId : null;
   const options = enumeratePlays(me.hand, game.table, required);
   if (options.length === 0) {
-    setBanner("Тавих боломж алга — пасс хийнэ үү.", "error");
+    setBanner(t("hint.none"), "error");
     return;
   }
   const move = chooseMove(game, app.myIndex) ?? options[0];
   app.selected = new Set(move.cards.map((c) => c.id));
   app.hintIds = new Set(move.cards.map((c) => c.id));
-  setBanner(`Зөвлөмж: ${move.label}`, "good");
+  setBanner(t("hint.suggestion", { label: translateComboLabel(move.label) }), "good");
   draw();
 }
 
 function toggleSort() {
   app.sortMode = app.sortMode === "rank" ? "suit" : "rank";
   app.handOrder = []; // автомат эрэмбэ рүү буцахад гараар зөөсөн дараалал цуцлагдана
-  $("btnSort").textContent = app.sortMode === "rank" ? "Эрэмбэ: тоо" : "Эрэмбэ: өнгө";
+  $("btnSort").textContent = app.sortMode === "rank" ? t("sort.byRank") : t("sort.bySuit");
   draw();
 }
 
@@ -877,11 +887,11 @@ function draw() {
   if (game.phase === PHASE.PLAYING) {
     const turnName = game.players[game.turn].name;
     if (hostLooksStale() && !isHost()) {
-      setBanner("Host холболт удааширлаа — автоматаар сэргээж байна…", "error");
+      setBanner(t("host.recovering"), "error");
     } else if (game.turn === app.myIndex) {
-      setBanner(game.table ? "Таны ээлж — дийлэх хослол тавина." : "Таны ээлж — шинээр эхэлнэ.");
+      setBanner(game.table ? t("turn.yourTurnBeat") : t("turn.yourTurnLead"));
     } else {
-      setBanner(`${turnName}-ийн ээлж…`);
+      setBanner(t("turn.someone", { name: turnName }));
     }
   }
   void me;
@@ -901,7 +911,7 @@ function recordGameResult(game, won) {
 
   const humans = humanSeats(app.room.seats ?? []).length;
   if (humans < 2) {
-    setBanner("Дасгал тоглолт — ranking-д тоологдохгүй.");
+    setBanner(t("rank.practiceNotCounted"));
     return;
   }
 
@@ -934,10 +944,10 @@ function matchSummaryNode(won) {
   node.className = "match-summary";
   const delta = app.mode === "online" && !app.user?.isAnonymous ? ratingDeltaForMatch(won) : null;
   node.innerHTML = `
-    <div class="summary-stat" data-main="true"><b>${won ? "WIN" : "LOSE"}</b><span>Үр дүн</span></div>
-    <div class="summary-stat"><b>${app.stats.roundWins}</b><span>Үе хожсон</span></div>
-    <div class="summary-stat"><b>${app.stats.points}</b><span>Торгууль</span></div>
-    <div class="summary-stat"><b>${delta === null ? "—" : `${delta >= 0 ? "+" : ""}${delta}`}</b><span>Rank өөрчлөлт</span></div>`;
+    <div class="summary-stat" data-main="true"><b>${won ? "WIN" : "LOSE"}</b><span>${t("summary.result")}</span></div>
+    <div class="summary-stat"><b>${app.stats.roundWins}</b><span>${t("summary.roundsWon")}</span></div>
+    <div class="summary-stat"><b>${app.stats.points}</b><span>${t("summary.penalty")}</span></div>
+    <div class="summary-stat"><b>${delta === null ? "—" : `${delta >= 0 ? "+" : ""}${delta}`}</b><span>${t("summary.rankChange")}</span></div>`;
   return node;
 }
 
@@ -972,14 +982,14 @@ function handleRoundEnd() {
     openModal({
       // Ялагчгүй дуусах нь бий: ганцаараа bot-той тоглоод 30 оноо цуглуулах
       title: won
-        ? "🏆 Та тоглоомыг яллаа!"
+        ? t("end.youWon")
         : game.gameWinner
-          ? `${game.gameWinner.name} яллаа`
-          : "Та хожигдлоо",
+          ? t("end.someoneWon", { name: game.gameWinner.name })
+          : t("end.lost"),
       body,
       actions: [
-        { label: "Lobby руу", onClick: exitGame },
-        { label: "Дахин тоглох", primary: true, onClick: replay },
+        { label: t("end.toLobby"), onClick: exitGame },
+        { label: t("end.replay"), primary: true, onClick: replay },
       ],
     });
     return;
@@ -987,11 +997,11 @@ function handleRoundEnd() {
 
   body.appendChild(roundResultTable(outcome, game.players));
   openModal({
-    title: `${game.round}-р үе дууслаа`,
+    title: t("round.ended", { round: game.round }),
     body,
     actions: [
       {
-        label: "Дараагийн үе",
+        label: t("round.next"),
         primary: true,
         onClick: async () => {
           if (app.mode === "local") {
@@ -1003,7 +1013,7 @@ function handleRoundEnd() {
             nextRound(fresh);
             await publishGame(fresh, app.room.seats, "playing");
           } else {
-            toast("Хост дараагийн үеийг эхлүүлнэ.");
+            toast(t("round.hostWillStart"));
           }
         },
       },
@@ -1073,23 +1083,21 @@ function clearSubscriptions() {
 
 function showRules() {
   openModal({
-    title: "Дүрэм",
+    title: t("rules.heading"),
     body: `
-      <p><strong>Өнгө:</strong> гил ♠ &gt; бундан ♥ &gt; цэцэг ♣ &gt; дөрвөлжин ♦</p>
-      <p><strong>Тоо:</strong> 3 4 5 6 7 8 9 10 J Q K A 2</p>
-      <p><strong>Хослолууд:</strong> нэг · хос · сет · страйт (5) · флаш (5 ижил өнгө) ·
-      фүл хаус · покер (4+1) · страйт флаш · рояал флаш</p>
-      <p><strong>5 хөзрийн эрэмбэ:</strong> страйт &lt; флаш &lt; фүл хаус &lt; покер &lt; страйт флаш</p>
-      <p><strong>Оноо:</strong> нэг хүн хөзрөө дуусгамагц үе дуусна. Үлдсэн хөзрийн тоо
-      оноо болно. 10 ба түүнээс дээш хөзөр үлдвэл ×2, нэг ч хөзөр гаргаагүй (13) бол ×3.</p>
-      <p><strong>Хасалт:</strong> 30 оноо цуглуулсан тоглогч хасагдана. Сүүлд үлдсэн нь ялагч.</p>`,
-    actions: [{ label: "Ойлголоо", primary: true }],
+      <p>${t("modal.rules.line1")}</p>
+      <p>${t("modal.rules.line2")}</p>
+      <p>${t("modal.rules.line3")}</p>
+      <p>${t("modal.rules.line4")}</p>
+      <p>${t("modal.rules.line5")}</p>
+      <p>${t("modal.rules.line6")}</p>`,
+    actions: [{ label: t("common.gotIt"), primary: true }],
   });
 }
 
 function requireOnline() {
   if (!fb.online) {
-    setHint("lobbyHint", "Онлайн тоглохын тулд Firebase тохиргоо шаардлагатай.", true);
+    setHint("lobbyHint", t("online.required"), true);
     return false;
   }
   return true;
@@ -1104,10 +1112,9 @@ function setHint(id, text, isError = false) {
 
 function friendlyError(error) {
   const code = error?.code ?? "";
-  if (code.includes("popup-closed")) return "Нэвтрэх цонх хаагдлаа.";
-  if (code.includes("popup-blocked")) return "Browser popup-г хаасан байна.";
-  if (code.includes("operation-not-allowed"))
-    return "Firebase Console дээр энэ нэвтрэх аргыг идэвхжүүлээгүй байна.";
-  if (code.includes("permission-denied")) return "Firestore дүрэм зөвшөөрөхгүй байна.";
-  return error?.message ?? "Алдаа гарлаа.";
+  if (code.includes("popup-closed")) return t("err.popupClosed");
+  if (code.includes("popup-blocked")) return t("err.popupBlocked");
+  if (code.includes("operation-not-allowed")) return t("err.authMethodDisabled");
+  if (code.includes("permission-denied")) return t("err.permissionDenied");
+  return error?.message ?? t("err.generic");
 }

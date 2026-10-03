@@ -8,11 +8,13 @@
 // өнгө бүр CSS хувьсагчаар тодорхойлогддог тул энэ файл зөвхөн тэр нэг
 // шинжийг л мэднэ.
 
+import { t } from "./i18n.js";
+
 const STORAGE_KEY = "huzur.theme";
 
 export const THEMES = [
-  { id: "felt", label: "Ширээ", hint: "Жинхэнэ хөзрийн ширээ" },
-  { id: "code", label: "Код", hint: "Ажлын дэлгэц шиг харагдана" },
+  { id: "felt", labelKey: "theme.felt", hintKey: "theme.feltHint" },
+  { id: "code", labelKey: "theme.code", hintKey: "theme.codeHint" },
 ];
 
 const IDS = new Set(THEMES.map((t) => t.id));
@@ -67,8 +69,8 @@ export function mountThemePickers(selector = "[data-theme-picker]") {
       button.type = "button";
       button.className = "theme-option";
       button.dataset.themeId = theme.id;
-      button.textContent = theme.label;
-      button.title = theme.hint;
+      button.textContent = t(theme.labelKey);
+      button.title = t(theme.hintKey);
       button.addEventListener("click", () => sync(applyTheme(theme.id)));
       group.appendChild(button);
     }
