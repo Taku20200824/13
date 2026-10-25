@@ -6,7 +6,7 @@
   "description": "Монгол дүрмээр тоглох 13 хөзрийн онлайн тоглоом",
   "scripts": {
     "dev": "python tools/devserver.py 5173 .",
-    "test": "node --test test/",
+    "test": "node --test test/*.test.mjs",
     "arena": "node tools/arena.mjs --rounds 1200"
   }
 }

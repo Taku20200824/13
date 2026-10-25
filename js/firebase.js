@@ -481,7 +481,7 @@ export async function clearPresence(uid) {
 }
 
 export function watchPresence(callback) {
-  const q = mod.query(mod.collection(db, "presence"), mod.limit(300));
+  const q = mod.query(mod.collection(db, "presence"), mod.orderBy("lastSeen", "desc"), mod.limit(300));
   return mod.onSnapshot(q, (snap) => {
     const now = Date.now();
     const live = snap.docs
