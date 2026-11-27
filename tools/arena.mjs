@@ -13,18 +13,39 @@ import { chooseMove as chooseOld } from "./bot-legacy.mjs";
 
 /** Жин сольсон хувилбар — нэг өөрчлөлтийн үр нөлөөг тусад нь хэмжинэ. */
 const tweak = (patch) => (game, i) =>
-  chooseNew(game, i, { difficulty: DIFFICULTY.HARD, weights: { ...WEIGHTS, ...patch } });
+  chooseNew(game, i, { difficulty: DIFFICULTY.HEURISTIC, weights: { ...WEIGHTS, ...patch } });
 
 const AGENTS = {
-  new: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.HARD }),
+  new: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.HARD, ms: 0 }),
+  heuristic: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.HEURISTIC }),
   expert: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, ms: 0 }),
+  expert16: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, worlds: 16, ms: 0 }),
   expert8: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, worlds: 8, ms: 0 }),
   expert32: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, worlds: 32, ms: 0 }),
+  expert64: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, worlds: 64, ms: 0 }),
+  expertW10: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, width: 10, ms: 0 }),
+  expertSmart: (game, i) =>
+    chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, policy: "smart", ms: 0 }),
+  expert4: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, worlds: 4, width: 4, ms: 0 }),
+  expertBlock: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, policy: "block", ms: 0 }),
+  expertOpp: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, policy: "opp", ms: 0 }),
+  expertOppBlock: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, policy: "oppBlock", ms: 0 }),
+  expertSmart32: (game, i) =>
+    chooseNew(game, i, { difficulty: DIFFICULTY.EXPERT, policy: "smart", worlds: 32, ms: 0 }),
   nopass: tweak({ allowPass: 0 }),
   noblock: tweak({ shutout: 0, dangerLead: 0, dangerBeat: 0 }),
   nocontrol: tweak({ control: 0 }),
   nomodel: tweak({ __ignoreDeclined: true }),
-  hard: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.HARD }),
+  // Бусад гурвыг харах — тус бүрийг тусад нь хэмжинэ
+  trick: tweak({ trickAware: 1 }),
+  tempo30: tweak({ trickAware: 1, tempo: 30 }),
+  tempo60: tweak({ trickAware: 1, tempo: 60 }),
+  tempo120: tweak({ trickAware: 1, tempo: 120 }),
+  td60x2: tweak({ trickAware: 1, tempo: 60, tempoDecay: 2 }),
+  td120x2: tweak({ trickAware: 1, tempo: 120, tempoDecay: 2 }),
+  td200x3: tweak({ trickAware: 1, tempo: 200, tempoDecay: 3 }),
+  block3: tweak({ trickAware: 1, blockAt: 3 }),
+  hard: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.HARD, ms: 0 }),
   normal: (game, i) => chooseNew(game, i, { difficulty: DIFFICULTY.NORMAL }),
   old: (game, i) => chooseOld(game, i, { difficulty: "hard" }),
   oldnormal: (game, i) => chooseOld(game, i, { difficulty: "normal" }),
@@ -160,19 +181,41 @@ if (sweep) {
 
 const roundCount = Number(arg("rounds", 0));
 const gameCount = Number(arg("games", 0));
+// Тараалтын багц. ӨӨР багцаар давтаж шалгана (README: "нэг багц хангалтгүй").
+const seedBase = Number(arg("seed", 1_000_000));
 const t0 = Date.now();
 
+// Хосолсон хэмжилт: тараалт бүрд (6 байрлалын дундаж) A − B зөрүү.
+// Тараалт бүр л БИЕ ДААСАН хэмжилт — 6 байрлалыг 6 хэмжилт гэж тоолбол
+// итгэлийн интервал хуурамчаар нарийсна.
+const dealDeltas = [];
+
 if (roundCount) {
+  let dealSum = 0;
+  let dealLayouts = 0;
   for (let g = 0; g < roundCount; g += 1) {
     const layout = LAYOUTS[g % LAYOUTS.length];
     const agents = layout.map((side) => (side === 0 ? a : b));
-    const results = playRound(1_000_000 + Math.floor(g / LAYOUTS.length), agents);
-    if (!results) continue;
-    for (const r of results) {
-      const side = tally[label(layout, r.id)];
-      side.points += r.points;
-      side.rounds += 1;
-      if (r.isRoundWinner) side.roundWins += 1;
+    const results = playRound(seedBase + Math.floor(g / LAYOUTS.length), agents);
+    if (results) {
+      let pa = 0;
+      let pb = 0;
+      for (const r of results) {
+        const side = tally[label(layout, r.id)];
+        side.points += r.points;
+        side.rounds += 1;
+        if (r.isRoundWinner) side.roundWins += 1;
+        if (layout[r.id] === 0) pa += r.points;
+        else pb += r.points;
+      }
+      // B − A: эерэг бол A нь цөөн оноо авсан = A хүчтэй
+      dealSum += (pb - pa) / 2;
+      dealLayouts += 1;
+    }
+    if (g % LAYOUTS.length === LAYOUTS.length - 1 && dealLayouts) {
+      dealDeltas.push(dealSum / dealLayouts);
+      dealSum = 0;
+      dealLayouts = 0;
     }
   }
 }
@@ -200,5 +243,17 @@ for (const [name, s] of Object.entries(tally)) {
   }
   if (s.games) parts.push(`тоглоом ялалт ${pct(s.gameWins, s.games / 2)}%  (${s.gameWins})`);
   console.log(parts.join("   "));
+}
+if (dealDeltas.length > 1) {
+  const n = dealDeltas.length;
+  const mean = dealDeltas.reduce((x, y) => x + y, 0) / n;
+  const sd = Math.sqrt(dealDeltas.reduce((x, y) => x + (y - mean) ** 2, 0) / (n - 1));
+  const half = (1.96 * sd) / Math.sqrt(n);
+  const sig = mean - half > 0 ? `${aName} ХҮЧТЭЙ` : mean + half < 0 ? `${bName} ХҮЧТЭЙ` : "ялгаа батлагдаагүй";
+  console.log(
+    `\n  ${aName} давуу тал: ${mean >= 0 ? "+" : ""}${mean.toFixed(3)} оноо/суудал/үе` +
+      `   95% CI [${(mean - half).toFixed(3)}, ${(mean + half).toFixed(3)}]` +
+      `   (${n} тараалт, seed ${seedBase})  → ${sig}`,
+  );
 }
 console.log("");

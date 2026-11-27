@@ -185,9 +185,12 @@ test("мастер түвшин хүчтэй түвшнээс дээгүүр", (
     while (game.phase === PHASE.PLAYING && guard < 400) {
       guard += 1;
       const i = game.turn;
+      // Хүчтэй нь өөрөө жижиг хайлт (4 ертөнц) тул түүний АНХДАГЧ тохиргоог
+      // ашиглана. Мастерыг тестийн хурдны төлөө 16 ертөнцөөр (arena дээр 64).
+      const expertSide = layout[i] === 0;
       const move = chooseMove(masked(game, i), i, {
-        difficulty: layout[i] === 0 ? DIFFICULTY.EXPERT : DIFFICULTY.HARD,
-        worlds: 4, // тестийн хурдны төлөө бага — arena дээр 16-аар хэмжинэ
+        difficulty: expertSide ? DIFFICULTY.EXPERT : DIFFICULTY.HARD,
+        ...(expertSide ? { worlds: 16 } : {}),
         ms: 0,
       });
       const result = move ? play(game, i, move.cards) : pass(game, i);
