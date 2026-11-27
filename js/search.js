@@ -18,7 +18,7 @@
 import { play, pass, PHASE } from "./game.js";
 import { roundPoints } from "./scoring.js";
 import { cardValue, sortByValue, STRAIGHT_RANKS } from "./cards.js";
-import { detect, beats, enumeratePlays } from "./rules.js";
+import { detect, beats, enumeratePlays, CATEGORY } from "./rules.js";
 
 /** Байрлалаас тогтмол үр гаргана — ижил байрлалд ижил шийдвэр гарна. */
 function positionSeed(game, index) {
@@ -251,6 +251,72 @@ function cheapCandidates(hand, previous) {
     }
   }
   return out;
+}
+
+/**
+ * Бусад гурвыг ХАРДАГ rollout бодлого.
+ *
+ * fastPolicy-д тоглогч бүр бусдыг огт тоодоггүй: дуусах шахсан хүнд сул
+ * ганц хөзөр өгнө, 2-оо дэмий үрнэ. Тэгвэл мастер түвшин "өрсөлдөгч
+ * гэнэн" гэж төсөөлж буруу дүгнэнэ. Энд тоглогч бүр (зөвхөн НИЙТИЙН
+ * мэдээллээр — хэний гарт хэдэн хөзөр байгаа) дараахыг хийнэ:
+ *   • 1-2 хөзөртэй хүн байвал түүний тооноос ОЛОН хөзрөөр тэргүүлнэ,
+ *     чадахгүй бол хамгийн хүчтэй ганц хөзрөөрөө (түүнд дийлүүлэхгүй)
+ *   • ширээ эзэмшигч дуусах шахсан бол ямар ч үнээр дийлнэ
+ *   • яаралгүй үед ганцхан 2 эсвэл бомбоор дийлэхийн оронд пасс хийнэ
+ */
+export const smartPolicy = (game, index) => policyWith(game, index, true, true);
+/** Зөвхөн хаалт (пасс хийж хэмнэх хэсэггүй) — хэсэг тус бүрийг тусад нь хэмжинэ. */
+export const blockPolicy = (game, index) => policyWith(game, index, true, false);
+
+function policyWith(game, index, block, save) {
+  const hand = game.players[index].hand;
+  const moves = cheapCandidates(hand, game.table);
+  if (!moves.length) return null;
+
+  const finisher = moves.find((m) => m.size === hand.length);
+  if (finisher) return finisher;
+
+  let dangerMin = Infinity;
+  for (const p of game.players) {
+    if (p.index === index || p.eliminated) continue;
+    if (p.hand.length < dangerMin) dangerMin = p.hand.length;
+  }
+  const danger = dangerMin <= 2;
+  const ownerDanger =
+    game.table && game.tableOwner !== null && game.players[game.tableOwner].hand.length <= 2;
+
+  if (block && !game.table && danger) {
+    // Хаалт: түүний гарын тооноос олон хөзөртэй хослол
+    const shut = moves.filter((m) => m.size > dangerMin);
+    if (shut.length) return cheapest(shut, game);
+    // Үгүй бол хамгийн хүчтэй ганц хөзрөөр — дийлэгдэх магадлалыг бууруулна
+    const singles = moves.filter((m) => m.size === 1);
+    if (singles.length) return singles[singles.length - 1];
+  }
+
+  if (!save) return fastPolicy(game, index);
+  const best = cheapest(moves, game);
+  if (game.table && !ownerDanger && !danger && hand.length > 5) {
+    const costly = best.cards.some((c) => c.rank === "2") || (best.category ?? 0) >= CATEGORY.POKER;
+    if (costly) return null; // хүчээ хэмнэнэ — гар том, яаралгүй
+  }
+  return best;
+}
+
+function cheapest(moves, game) {
+  let best = null;
+  let bestCost = Infinity;
+  for (const combo of moves) {
+    const top = cardValue(combo.cards[combo.cards.length - 1]);
+    let cost = top - combo.size * 14;
+    if (!game.table) cost -= combo.size * 8;
+    if (cost < bestCost) {
+      bestCost = cost;
+      best = combo;
+    }
+  }
+  return best;
 }
 
 /**

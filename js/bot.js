@@ -16,9 +16,10 @@
 
 import { enumeratePlays, detect, beats, compareSameShape, CATEGORY } from "./rules.js";
 import { cardValue, rankOrder, makeDeck, STRAIGHT_RANKS } from "./cards.js";
-import { searchMove, fastPolicy } from "./search.js";
+import { searchMove, fastPolicy, smartPolicy, blockPolicy } from "./search.js";
 
-export const DIFFICULTY = { NORMAL: "normal", HARD: "hard", EXPERT: "expert" };
+// HEURISTIC нь хайлтгүй цэвэр эвристик — жин тохируулах, arena-д хэрэглэнэ.
+export const DIFFICULTY = { NORMAL: "normal", HARD: "hard", EXPERT: "expert", HEURISTIC: "heuristic" };
 
 /**
  * Хүчтэй түвшний жингүүд. Бүгд `tools/arena.mjs`-ээр хэмжиж сонгосон —
@@ -58,6 +59,20 @@ export const WEIGHTS = {
   dangerLead: 130, // түүний дийлж чадах юмаар тэргүүлэх = ширээ бэлэглэх
   dangerBeat: 40, // дагаж байхад түүнийг зогсоож чадахгүй нүүдэл
 
+  // ── Бусад гурвыг харах (ээлжийн байдал)
+  // Пасс хийсэн хүн ширээ цэвэрлэгдэх хүртэл ДАХИЖ тоглож чадахгүй.
+  // Тиймээс дагаж байхад "энэ ээлжинд хэн хариулж чадах вэ" гэдгийг
+  // зөвхөн пасс хийгээгүй хүмүүсээр бодно. Ширээ надад үлдвэл би
+  // дараагийн тэргүүлэгч болно — тэр нь бодит ашиг (tempo).
+  // Хэмжилт (hard эвристик дээр, 400 тараалт): trickAware ганцаараа ±0,
+  // tempo 30/60/120 → −0.14/−0.23/−0.31 (хүчтэй хөзрөө эрт үрдэг),
+  // decay-тай хувилбарууд ±0 эсвэл муу. Тиймээс УНТРААЛТТАЙ. Энэ мэдээллийг
+  // мастер түвшний хайлт аль хэдийн ашигладаг: пасс хийсэн хүнд тараасан
+  // ертөнцүүд нь тэр хослолыг дийлэх хөзөргүй байхаар шүүгддэг.
+  tempo: 0, // ширээг авах магадлал × энэ урамшуулал (дагаж байхад)
+  tempoDecay: 0, // урамшууллыг (үлдэх нүүдэл)^decay-д хуваана
+  trickAware: 0, // 1 бол эрсдэл/аюулыг зөвхөн хариулж чадах хүмүүсээр бодно
+
   allowPass: 1, // 0 бол хэзээ ч пасс хийхгүй (хуучин зан)
   passBelow: 9, // төлөвлөгөө хамгаалахаар пасс хийх дээд гарын хэмжээ
   // Өрсөлдөгч юуг дийлж чадаагүйг санах эсэх.
@@ -73,8 +88,25 @@ export const WEIGHTS = {
 
   // ── "expert" түвшний хайлт (js/search.js)
   searchWidth: 6, // эвристикээр шалгарсан хэдэн нүүдлийг тоглуулж үзэх вэ
-  searchWorlds: 16, // өрсөлдөгчийн гарыг хэдэн янзаар таамаглах вэ
+  // 16 → 64: гурван бие даасан тараалтын багц дээр +0.19 / +0.15 / +0.25
+  // (нийт 600 тараалт, ~+0.2 оноо/үе). 32 нь ялгаагүй байсан.
+  // Дунджаар ~33 мс/нүүдэл; удаан утсанд searchMs таслана.
+  searchWorlds: 64, // өрсөлдөгчийн гарыг хэдэн янзаар таамаглах вэ
   searchMs: 400, // нэг нүүдэлд зарцуулах дээд хугацаа (0 = хязгааргүй)
+
+  // ── "hard" түвшин = ЖИЖИГ хайлт (4 ертөнц × 4 нүүдэл, ~2 мс/нүүдэл)
+  // Өмнөх цэвэр эвристик нь "энгийн"-ээс бараг ялгаагүй байв (+0.18).
+  // Жижиг хайлт нь хуучин хүчтэйг хоёр багц дээр +0.20 / +0.25-аар
+  // давсан, мастер нь түүнийг +0.31-ээр давдаг — түвшний дараалал хадгалагдана.
+  hardWorlds: 4,
+  hardWidth: 4,
+  hardCriticalWorlds: 64, // хэн нэг нь 1-2 хөзөртэй үед (16 нь ялгаж чаддаггүй байрлал байсан)
+
+  // Rollout дотор тоглогчдыг "ухаалаг" болгох (хаалт, 2-оо хэмнэх) нь
+  // САЙЖРУУЛАХГҮЙ байсан: smart −0.45, зөвхөн өрсөлдөгч −0.23, хаалт −0.10.
+  // Rollout бодлого нь бодит өрсөлдөгчийг дуурайх биш, нүүдлүүдийг ЖИШИХ
+  // хэрэгсэл — энгийн, жигд бодлого нь харьцуулалтыг илүү найдвартай болгодог.
+  rolloutPolicy: "fast",
 };
 
 const isBomb = (combo) => combo.category >= CATEGORY.POKER;
@@ -462,6 +494,13 @@ function holdProbability(total, count, need) {
   return p;
 }
 
+/** Энэ ээлжинд пасс хийсэн эсэх (Set эсвэл массив — онлайн төлөв массив). */
+function hasPassed(game, seat) {
+  const passed = game.passed;
+  if (!passed) return false;
+  return typeof passed.has === "function" ? passed.has(seat) : passed.includes(seat);
+}
+
 /** Идэвхтэй өрсөлдөгч бүрийн НИЙТИЙН мэдээлэл — гарыг нь хэзээ ч хардаггүй. */
 function buildOpponents(game, index) {
   const declined = game.declined ?? {};
@@ -538,7 +577,14 @@ export function chooseMove(game, index, options = {}) {
   const weights = options.weights ?? WEIGHTS;
   if (difficulty === DIFFICULTY.NORMAL) return chooseNormal(game, index, moves);
   if (difficulty === DIFFICULTY.EXPERT) return chooseExpert(game, index, moves, weights, options);
-  return chooseHard(game, index, moves, weights);
+  if (difficulty === DIFFICULTY.HEURISTIC) return chooseHard(game, index, moves, weights);
+  // Хүчтэй = жижиг хайлт: бусад гурвын боломжит гар дээр тоглуулж үзнэ
+  return chooseExpert(game, index, moves, weights, {
+    ...options,
+    worlds: options.worlds ?? weights.hardWorlds,
+    width: options.width ?? weights.hardWidth,
+    criticalWorlds: options.criticalWorlds ?? weights.hardCriticalWorlds,
+  });
 }
 
 /* ── Энгийн түвшин (хуучин логик) ───────────────── */
@@ -610,7 +656,14 @@ function rankHard(game, index, moves, w = WEIGHTS) {
   const risk = (combo) => riskFrom(opponents, combo);
   const safe = (combo) => risk(combo) <= w.safeAt;
 
-  const danger = opponents.filter((o) => o.count <= w.blockAt);
+  // Энэ ээлжинд надад хариулж чадах хүмүүс. Тэргүүлж байхад бүгд;
+  // дагаж байхад пасс хийсэн хүмүүс ширээ цэвэрлэгдэх хүртэл гадуур.
+  const responders =
+    leading || !w.trickAware ? opponents : opponents.filter((o) => !hasPassed(game, o.seat));
+  /** Энэ ээлжинд хэн нэг нь дийлэх магадлал — 0 бол ширээ минийх болно. */
+  const trickRisk = (combo) => (responders.length ? riskFrom(responders, combo) : 0);
+
+  const danger = responders.filter((o) => o.count <= w.blockAt);
   const dangerMin = danger.length ? Math.min(...danger.map((o) => o.count)) : Infinity;
   const dangerRisk = (combo) => (danger.length ? riskFrom(danger, combo) : 0);
 
@@ -665,13 +718,28 @@ function rankHard(game, index, moves, w = WEIGHTS) {
       score += combo.size * w.followSize;
       // Дагаж байхад: аюултай хүн үүнийг дийлж чадвал хаалт болохгүй
       if (dangerMin !== Infinity) score += dangerRisk(combo) * w.dangerBeat;
+      // Үлдсэн хариулагчид дийлэхгүй бол ширээ надад үлдэж, би тэргүүлнэ
+      // Хэмжилт: тогтмол урамшуулал нь bot-ыг ЭРТ хүчтэй хөзрөө үрэхэд
+      // хүргэж СУЛРУУЛСАН (-0.13…-0.31). Ширээ авах нь дуусах ойр үед л
+      // үнэ цэнэтэй — үлдэх нүүдлийн тоогоор бууруулна.
+      if (w.tempo) score -= ((1 - trickRisk(combo)) * w.tempo) / Math.pow(Math.max(1, after), w.tempoDecay);
     }
 
     return { combo, after, score };
   });
 
   scored.sort((a, b) => a.score - b.score);
-  return { scored, leading, basePlays, info, opponents, dangerMin, handSize: hand.length };
+  return {
+    scored,
+    leading,
+    basePlays,
+    info,
+    opponents,
+    responders,
+    trickRisk,
+    dangerMin,
+    handSize: hand.length,
+  };
 }
 
 /** Хүчтэй түвшин — эвристик үнэлгээний тэргүүнийг шууд сонгоно (хурдан). */
@@ -685,6 +753,29 @@ function chooseHard(game, index, moves, w = WEIGHTS) {
 }
 
 /* ── Мастер түвшин: эвристик + тоглуулж үзэх хайлт ── */
+
+/**
+ * Rollout дотор хэн ямар бодлогоор тоглох вэ.
+ *   fast  — бүгд энгийн
+ *   smart — бүгд бусдыг хардаг (хаалт + 2-оо хэмнэх)
+ *   block — бүгд зөвхөн хаалт хийдэг
+ *   opp   — ЗӨВХӨН өрсөлдөгчид бусдыг хардаг, би энгийн
+ *   oppBlock — зөвхөн өрсөлдөгчид хаалт хийдэг
+ */
+function rolloutPolicyFor(name, me) {
+  switch (name) {
+    case "smart":
+      return smartPolicy;
+    case "block":
+      return blockPolicy;
+    case "opp":
+      return (g, seat) => (seat === me ? fastPolicy(g, seat) : smartPolicy(g, seat));
+    case "oppBlock":
+      return (g, seat) => (seat === me ? fastPolicy(g, seat) : blockPolicy(g, seat));
+    default:
+      return fastPolicy;
+  }
+}
 
 /**
  * Эвристик нь хэдэн арван нүүдлээс сайхныг нь ялгаж чадах ч, хоорондоо
@@ -701,12 +792,23 @@ function chooseExpert(game, index, moves, w = WEIGHTS, options = {}) {
   if (!ranked.leading) candidates.push(null);
   if (candidates.length < 2) return candidates[0] ?? null;
 
+  // Хэн нэг нь дуусах шахсан (1-2 хөзөр) үед нэг алдаа нь үеийг алдана.
+  // Тэр ховор, шийдвэрлэх агшинд илүү олон ертөнц тоглуулж үзнэ — жижиг
+  // хайлт 4 ертөнцөөр 1 хөзөртэй хүнд K өгч байсныг ингэж засав.
+  const anyoneClose = ranked.opponents.some((o) => o.count <= w.blockAt);
+  let worlds = options.worlds ?? w.searchWorlds;
+  if (anyoneClose && options.criticalWorlds) worlds = Math.max(worlds, options.criticalWorlds);
+
   const { move } = searchMove(
     game,
     index,
     candidates,
-    { unseen: ranked.info.cards, opponents: ranked.opponents, policy: fastPolicy },
-    { worlds: options.worlds ?? w.searchWorlds, ms: options.ms ?? w.searchMs },
+    {
+      unseen: ranked.info.cards,
+      opponents: ranked.opponents,
+      policy: rolloutPolicyFor(options.policy ?? w.rolloutPolicy, index),
+    },
+    { worlds, ms: options.ms ?? w.searchMs },
   );
   return move;
 }
