@@ -1,6 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
+  "installCommand": "echo 'static site: devDependencies are only for local tests'",
   "headers": [
     {
       "source": "/(.*)",

@@ -1,10 +1,19 @@
 rules_version = '2';
 
+// Аюулгүй байдлын дүрэм. Сервер (Cloud Functions / API) байхгүй тул
+// client бүр шууд Firestore руу бичдэг — ЭНЭ ФАЙЛ л хамгаалалт.
+//
+// Тестийг Firestore emulator дээр ажиллуулна:  npm run test:rules
+// (test/rules.emulator.mjs — халдлага бүрийг бодитоор оролдож шалгана)
+
 service cloud.firestore {
   match /databases/{database}/documents {
 
     function signedIn() { return request.auth != null; }
     function me() { return request.auth.uid; }
+    function isAnonymousAuth() {
+      return request.auth.token.firebase.sign_in_provider == 'anonymous';
+    }
 
     // Chat мессежийн бүрэн бүтэн байдал: зохиогч нь өөрөө, урт хязгаартай,
     // цаг нь бодит (ирээдүй рүү хуурамчаар түлхэж болохгүй).
@@ -18,19 +27,144 @@ service cloud.firestore {
              && request.resource.data.createdMs >= request.time.toMillis() - 60000;
     }
 
+    /* ── Суудлын туслах функцууд ────────────────────────
+       rooms/{code}.seats нь ҮРГЭЛЖ 4 урттай массив (js/seats.js).
+       Хоосон нүд: { seatIndex, uid: null, empty: true } */
+
+    function isHumanSeat(s) {
+      return s.get('uid', null) is string && s.get('isBot', false) == false;
+    }
+    function humanAt(seats, i, uid) {
+      return isHumanSeat(seats[i]) && seats[i].uid == uid;
+    }
+    function seatedHuman(seats, uid) {
+      return humanAt(seats, 0, uid) || humanAt(seats, 1, uid)
+             || humanAt(seats, 2, uid) || humanAt(seats, 3, uid);
+    }
+    // `skip`-ээс бусад хамгийн бага дугаартай хүн (js/seats.js electHost-тэй ижил)
+    function eligible(s, skip) { return isHumanSeat(s) && s.uid != skip; }
+    function firstHumanExcept(seats, skip) {
+      return eligible(seats[0], skip) ? seats[0].uid
+           : eligible(seats[1], skip) ? seats[1].uid
+           : eligible(seats[2], skip) ? seats[2].uid
+           : eligible(seats[3], skip) ? seats[3].uid
+           : null;
+    }
+    function humanCount(seats) {
+      return (isHumanSeat(seats[0]) ? 1 : 0) + (isHumanSeat(seats[1]) ? 1 : 0)
+           + (isHumanSeat(seats[2]) ? 1 : 0) + (isHumanSeat(seats[3]) ? 1 : 0);
+    }
+
     // ── Хэрэглэгчийн профайл ба ranking ──────────────
+    //
+    // Өмнө нь эзэн нь баримтынхаа ДУРЫН талбарыг бичиж чаддаг байсан тул
+    // console-оос `wins: 9999` гэж нэг мөрөөр ranking-ийг хуурч болдог байв.
+    // Одоо хоёр л зам бий:
+    //   1. profileEdit  — нэр/зураг. Тоон үзүүлэлтэд хүрэхгүй.
+    //   2. resultRecord — дууссан тоглоомын үр дүн. Өрөөний төлөвтэй
+    //      тулгаж шалгана, тоглоом бүрийг ЗӨВХӨН НЭГ удаа (games/{gameId}).
     match /users/{uid} {
+      function old() { return resource.data; }
+      function nu() { return request.resource.data; }
+      function n(d, k) { return d.get(k, 0); }
+      function ratingOf(d) {
+        return n(d, 'wins') * 100 + n(d, 'roundWins') * 20
+               - n(d, 'points') * 3 - n(d, 'losses') * 25;
+      }
+      function validName() {
+        return nu().displayName is string
+               && nu().displayName.size() > 0 && nu().displayName.size() <= 40;
+      }
+      function changed() { return nu().diff(old()).affectedKeys(); }
+
+      function freshProfile() {
+        return nu().keys().hasOnly(['displayName', 'photoURL', 'anonymous', 'games', 'wins',
+                                    'losses', 'rounds', 'roundWins', 'points', 'rating',
+                                    'recordedGames', 'updatedAt'])
+               && validName()
+               && nu().anonymous == isAnonymousAuth()
+               && n(nu(), 'games') == 0 && n(nu(), 'wins') == 0 && n(nu(), 'losses') == 0
+               && n(nu(), 'rounds') == 0 && n(nu(), 'roundWins') == 0
+               && n(nu(), 'points') == 0 && n(nu(), 'rating') == 0;
+      }
+
+      function profileEdit() {
+        return changed().hasOnly(['displayName', 'photoURL', 'anonymous', 'updatedAt',
+                                  'rating', 'losses', 'recordedGames'])
+               && validName()
+               && nu().get('anonymous', false) == isAnonymousAuth()
+               // rating нь томьёоноос л гарна — гараар өсгөж болохгүй
+               && (!changed().hasAny(['rating']) || nu().rating == ratingOf(nu()))
+               // Хуучин профайлын дутуу талбарыг нөхөх (нэг удаа)
+               && (!changed().hasAny(['losses'])
+                   || (!(old().get('losses', null) is number)
+                       && nu().losses == n(old(), 'games') - n(old(), 'wins')))
+               && (!changed().hasAny(['recordedGames'])
+                   || (!(old().get('recordedGames', null) is list) && nu().recordedGames == []));
+      }
+
+      function resultRecord() {
+        let gid = nu().lastGameId;
+        let room = get(/databases/$(database)/documents/rooms/$(nu().lastGameRoom)).data;
+        let st = room.state;
+        let seat = nu().lastGameSeat;
+        let won = st.gameWinner != null && st.gameWinner.id == me();
+        let dRounds = n(nu(), 'rounds') - n(old(), 'rounds');
+        let dRoundWins = n(nu(), 'roundWins') - n(old(), 'roundWins');
+        return changed().hasOnly(['games', 'wins', 'losses', 'rounds', 'roundWins', 'points',
+                                  'rating', 'recordedGames', 'updatedAt',
+                                  'lastGameId', 'lastGameRoom', 'lastGameSeat'])
+               // Ranking зөвхөн Google account-д
+               && !isAnonymousAuth() && old().get('anonymous', false) == false
+               // Тоглоом бүр нэг л удаа: games/{gid} энэ бичилтээр шинээр үүснэ
+               && gid is string
+               && !exists(/databases/$(database)/documents/users/$(uid)/games/$(gid))
+               && existsAfter(/databases/$(database)/documents/users/$(uid)/games/$(gid))
+               // Бодит, дууссан, 2+ хүнтэй тоглоом бөгөөд би тэнд тоглосон
+               && room.gameId == gid
+               && st.phase == 'gameEnd'
+               && humanCount(room.seats) >= 2
+               && seat is int && seat >= 0 && seat < st.players.size()
+               && st.players[seat].id == me()
+               // Тоо нь өрөөний төлөвтэй таарна
+               && n(nu(), 'games') == n(old(), 'games') + 1
+               && n(nu(), 'wins') == n(old(), 'wins') + (won ? 1 : 0)
+               && n(nu(), 'losses') == n(old(), 'losses') + (won ? 0 : 1)
+               && n(nu(), 'points') == n(old(), 'points') + st.players[seat].score
+               && dRounds >= 1 && dRounds <= st.round
+               && dRoundWins >= 0 && dRoundWins <= dRounds
+               && nu().rating == ratingOf(nu())
+               && nu().recordedGames is list && nu().recordedGames.size() <= 50;
+      }
+
       allow read: if signedIn();
-      allow create, update: if signedIn() && me() == uid;
+      allow create: if signedIn() && me() == uid && freshProfile();
+      allow update: if signedIn() && me() == uid && (profileEdit() || resultRecord());
       allow delete: if false;
+
+      // Бүртгэсэн тоглоомын тэмдэглэл — давхар бүртгэлээс хамгаална
+      match /games/{gameId} {
+        allow read: if signedIn() && me() == uid;
+        allow create: if signedIn() && me() == uid
+                      && getAfter(/databases/$(database)/documents/users/$(uid)).data.lastGameId == gameId;
+        allow update, delete: if false;
+      }
     }
 
     // ── Presence ─────────────────────────────────────
+    // Хувийн өрөөний кодыг presence-ээр задруулахгүй: roomCode нь зөвхөн
+    // public өрөөнд бичигдэнэ.
     match /presence/{uid} {
+      function p() { return request.resource.data; }
+      function roomPath() { return /databases/$(database)/documents/rooms/$(p().roomCode); }
       allow read: if signedIn();
       allow delete: if signedIn() && me() == uid;
       allow create, update: if signedIn() && me() == uid
-                            && request.resource.data.uid == uid;
+                            && p().uid == uid
+                            && p().keys().hasOnly(['uid', 'lastSeen', 'roomCode', 'inRoom',
+                                                   'roomPublic', 'inGame', 'name'])
+                            && (p().get('roomCode', null) == null
+                                || (exists(roomPath()) && get(roomPath()).data.visibility == 'public'));
     }
 
     // ── Нийтийн chat ─────────────────────────────────
@@ -44,64 +178,120 @@ service cloud.firestore {
     match /rooms/{code} {
 
       function existing() { return resource.data; }
-      function incoming()  { return request.resource.data; }
-      function isMember()  { return me() in existing().members; }
-      function isHost()    { return existing().host == me(); }
+      function incoming() { return request.resource.data; }
+      function isMember() { return me() in existing().members; }
+      function isHost()   { return existing().host == me(); }
+      function changedKeys() { return incoming().diff(existing()).affectedKeys(); }
 
-      function hostUnchanged() { return incoming().host == existing().host; }
-      function hostSeatGone()  { return !(existing().host in existing().members); }
+      function hostSeated() { return seatedHuman(existing().seats, existing().host); }
       function hostTimedOut() {
-        return existing().hostSeenAt is number
-               && request.time.toMillis() - existing().hostSeenAt > 30000;
-      }
-
-      // Зөвхөн host өөрчилж болох талбарууд. Гишүүн эдгээрийг хөндвөл
-      // татгалзана — өмнө нь дурын гишүүн тоглоомыг эхлүүлэх, bot
-      // тохиргоог солих боломжтой байсан.
-      function hostOnlyFieldsUntouched() {
-        return !request.resource.data.diff(resource.data)
-                  .affectedKeys()
-                  .hasAny(['status', 'allowBots', 'botLevel', 'visibility', 'gameId', 'startedAt']);
+        let seen = existing().get('hostSeenAt', null);
+        return (seen is timestamp && request.time > seen + duration.value(30, 's'))
+               || (seen is number && request.time.toMillis() - seen > 30000);
       }
 
       // state/stateVersion нь нүүдлээр өөрчлөгддөг — хамт л шинэчлэгдэнэ,
       // бөгөөд хувилбарын дугаар зөвхөн УРАГШ явна (дахин тоглуулахаас хамгаална).
       function versionMovesForward() {
-        return !request.resource.data.diff(resource.data).affectedKeys().hasAny(['state'])
-               || (incoming().stateVersion is number
-                   && incoming().stateVersion > (existing().stateVersion is number ? existing().stateVersion : 0));
+        return !changedKeys().hasAny(['state', 'stateVersion'])
+               || (incoming().stateVersion is int
+                   && incoming().stateVersion > existing().get('stateVersion', 0));
       }
 
-      allow read: if signedIn();
+      // Суудал i: хөндөөгүй, эсвэл тэр нь МИНИЙ суудал (өмнө нь ч, одоо ч)
+      function seatOk(i) {
+        return incoming().seats[i] == existing().seats[i]
+               || existing().seats[i].get('uid', null) == me();
+      }
+      function onlyMySeatChanged() {
+        return incoming().seats is list && incoming().seats.size() == 4
+               && seatOk(0) && seatOk(1) && seatOk(2) && seatOk(3);
+      }
+      // Шинээр орж буй хүн зөвхөн ХООСОН суудалд өөрийгөө суулгана
+      function joinSeatOk(i) {
+        return incoming().seats[i] == existing().seats[i]
+               || (existing().seats[i].get('uid', null) == null
+                   && incoming().seats[i].uid == me()
+                   && incoming().seats[i].get('isBot', false) == false);
+      }
+      function othersMembersUnchanged() {
+        return incoming().members.toSet().difference([me()].toSet())
+               == existing().members.toSet().difference([me()].toSet());
+      }
+      // Ээлж миний суудал дээр байгаа үед л нийтийн төлөвийг бичнэ
+      function myTurn() {
+        return existing().status == 'playing'
+               && existing().state != null
+               && existing().seats[existing().state.turn].get('uid', null) == me();
+      }
+
+      // Host-ыг авах: host суудалгүй болсон эсвэл 30 сек дохиогүй бол,
+      // ЗӨВХӨН дараагийн ээлжийн хүн (хамгийн бага дугаартай хүн) авна.
+      // Өмнө нь дурын гишүүн `host: null` бичээд дараа нь өөрөө host болж,
+      // бүх хүний гарыг уншиж чаддаг байв.
+      function legitTakeover() {
+        return incoming().host == me()
+               && (!hostSeated() || hostTimedOut())
+               && firstHumanExcept(existing().seats, existing().host) == me()
+               && incoming().hostSeenAt == request.time;
+      }
+
+      // Host бус гишүүний бичилт
+      function memberUpdate() {
+        return isMember()
+               && changedKeys().hasOnly(['seats', 'members', 'state', 'stateVersion',
+                                         'updatedAt', 'host', 'hostSeenAt'])
+               && (!changedKeys().hasAny(['seats']) || onlyMySeatChanged())
+               && (!changedKeys().hasAny(['members']) || othersMembersUnchanged())
+               && (!changedKeys().hasAny(['state', 'stateVersion'])
+                   || (myTurn() && incoming().stateVersion == existing().get('stateVersion', 0) + 1))
+               && (!changedKeys().hasAny(['host', 'hostSeenAt']) || legitTakeover());
+      }
+
+      // Шинээр нэгдэх: хүлээж буй өрөөнд суудал эзлэхээс өөр юу ч хийхгүй
+      function joinUpdate() {
+        return !isMember()
+               && existing().status == 'waiting'
+               && changedKeys().hasOnly(['seats', 'members', 'updatedAt'])
+               && incoming().members.toSet() == existing().members.toSet().union([me()].toSet())
+               && incoming().seats is list && incoming().seats.size() == 4
+               && joinSeatOk(0) && joinSeatOk(1) && joinSeatOk(2) && joinSeatOk(3)
+               && seatedHuman(incoming().seats, me());
+      }
+
+      // Host: тоглоомыг удирдана. Гэхдээ host-ыг зөвхөн суудалтай хүнд шилжүүлнэ.
+      function hostUpdate() {
+        return isHost()
+               && (!changedKeys().hasAny(['host'])
+                   || incoming().host == null
+                   || seatedHuman(incoming().seats, incoming().host));
+      }
+
+      // Код мэдэж байвал нэг өрөөг уншиж (орж) болно. Харин ЖАГСААЛТ нь
+      // зөвхөн public болон өөрийн өрөөг харуулна — хувийн өрөөний код
+      // гадагш задрахгүй.
+      allow get: if signedIn();
+      allow list: if signedIn()
+                  && (resource.data.visibility == 'public' || me() in resource.data.members);
 
       allow create: if signedIn()
                     && incoming().host == me()
                     && incoming().status == 'waiting'
-                    && me() in incoming().members;
-
-      // Шинээр нэгдэж буй хүн зөвхөн суудал эзлэх эрхтэй: хүлээж буй
-      // өрөө байх ёстой, тоглоомын төлөв/host/статусыг хөндөж болохгүй.
-      // Өмнө нь өөрийгөө `members`-т нэмээд л дурын өрөөний төлөвийг
-      // хуурамчаар бичих боломжтой байсан.
-      function joiningCleanly() {
-        return me() in incoming().members
-               && existing().status == 'waiting'
-               && !request.resource.data.diff(resource.data).affectedKeys()
-                     .hasAny(['state', 'stateVersion', 'host', 'status', 'gameId', 'startedAt']);
-      }
+                    && incoming().members == [me()]
+                    && incoming().visibility in ['public', 'private']
+                    && incoming().state == null
+                    && incoming().stateVersion == 0
+                    && incoming().seats is list && incoming().seats.size() == 4
+                    && humanAt(incoming().seats, 0, me());
 
       allow update: if signedIn()
-                    && (isMember() || joiningCleanly())
-                    && (
-                         hostUnchanged()
-                         || isHost()
-                         || ((hostSeatGone() || hostTimedOut()) && incoming().host == me())
-                         || incoming().host == null
-                       )
-                    && (isHost() || hostOnlyFieldsUntouched())
+                    && (hostUpdate() || memberUpdate() || joinUpdate())
                     && versionMovesForward();
 
-      allow delete: if signedIn() && isHost();
+      // Host, эсвэл сүүлчийн хүн гарч байгаа бол өрөөг устгана
+      allow delete: if signedIn()
+                    && (isHost()
+                        || (isMember() && firstHumanExcept(existing().seats, me()) == null));
 
       // ── Өрөөний chat ───────────────────────────────
       match /messages/{messageId} {
@@ -116,29 +306,40 @@ service cloud.firestore {
         allow update, delete: if false;
       }
 
-      // ── Гар: зөвхөн эзэн нь болон host уншина ──────
+      // ── Гар ───────────────────────────────────────
+      // Өмнө нь host БҮХ хүний гарыг уншиж, дарж бичиж чаддаг байв.
+      // Одоо host зөвхөн bot (эсвэл гарсан хүний) суудлын гарыг уншина.
+      // Хүн өөрийн гараас хөзөр ХАСАХААС өөр зүйл хийж чадахгүй —
+      // гартаа хөзөр нэмж хуурах боломжгүй.
       match /hands/{seat} {
         function room() {
           return get(/databases/$(database)/documents/rooms/$(code)).data;
         }
-        // Баримт хараахан үүсээгүй байхад `resource` нь null болж,
-        // `resource.data` алдаа өгдөг → сонсогч үхэж, тоглогч мөнхөд
-        // хүлээдэг байсан. Хоосон баримтыг уншихад асуудалгүй.
+        function seatInfo() { return room().seats[int(seat)]; }
+        function hand() { return request.resource.data; }
+
+        // Баримт хараахан үүсээгүй байхад `resource` нь null — хоосон
+        // баримтыг уншихад асуудалгүй (сонсогч үхэхгүй).
         allow read: if signedIn() && (
                       resource == null ||
                       resource.data.uid == me() ||
-                      room().host == me()
+                      (room().host == me() && !isHumanSeat(seatInfo()))
                     );
-        // Өөрийн гараа бичнэ. Host нь bot-ын (uid: bot-*) гарыг бичнэ.
-        // Хөзрийн массивын хэлбэр, хэмжээ заавал зөв байна.
+
         allow write: if signedIn()
                      && me() in room().members
-                     && request.resource.data.uid is string
-                     && request.resource.data.cards is list
-                     && request.resource.data.cards.size() <= 13
+                     && hand().keys().hasOnly(['uid', 'cards'])
+                     && hand().uid is string
+                     && hand().uid == seatInfo().get('uid', null)
+                     && hand().cards is list
+                     && hand().cards.size() <= 13
                      && (
-                          request.resource.data.uid == me()
-                          || (room().host == me() && request.resource.data.uid != null)
+                          // Host тарааж, bot-ын нүүдлийг бичнэ
+                          room().host == me()
+                          // Хүн: өөрийн гар, зөвхөн хөзөр хасна
+                          || (hand().uid == me()
+                              && resource != null
+                              && resource.data.cards.hasAll(hand().cards))
                         );
       }
     }

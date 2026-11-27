@@ -7,6 +7,13 @@
   "scripts": {
     "dev": "python tools/devserver.py 5173 .",
     "test": "node --test test/*.test.mjs",
-    "arena": "node tools/arena.mjs --rounds 1200"
+    "arena": "node tools/arena.mjs --rounds 1200",
+    "test:rules": "firebase emulators:exec --only firestore --project demo-huzur \"node --test --test-concurrency=1 test/rules.emulator.mjs\"",
+    "emulators": "firebase emulators:start --only auth,firestore --project huzur-fdcf2"
+  },
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
+    "firebase": "^12.19.0",
+    "firebase-tools": "^15.37.0"
   }
 }

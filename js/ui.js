@@ -477,9 +477,9 @@ export function roundResultTable(outcome, players) {
       const eliminated = outcome.eliminated.includes(r.id);
       row.innerHTML = `
         <td>${escapeText(players[r.id]?.name ?? r.name)}${eliminated ? ` · ${t("status.eliminated")}` : ""}</td>
-        <td>${r.cardsLeft}</td>
-        <td class="result-calc">${pointsLabel(r.cardsLeft)}</td>
-        <td>${r.scoreAfter}</td>`;
+        <td>${Number(r.cardsLeft) || 0}</td>
+        <td class="result-calc">${escapeText(pointsLabel(Number(r.cardsLeft) || 0))}</td>
+        <td>${Number(r.scoreAfter) || 0}</td>`;
       body.appendChild(row);
     });
 

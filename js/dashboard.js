@@ -104,10 +104,15 @@ export function computeStats(presence, rooms, now = Date.now()) {
   const running = live.filter((r) => r.status === "playing");
   const waiting = live.filter((r) => r.status === "waiting");
 
+  // Хувийн өрөөний жагсаалтыг дүрэм хаадаг тул (код задрахгүйн тулд)
+  // хувийн өрөөнд байгаа хүний тоог presence-ээс тоолно.
+  const privatePlayers = (presence ?? []).filter((p) => p.inRoom && !p.roomPublic).length;
+
   return {
     online: (presence ?? []).length,
     publicRooms: publicRooms.length,
     privateRooms: privateRooms.length,
+    privatePlayers,
     running: running.length,
     waiting: waiting.length,
     seated: running.reduce((sum, r) => sum + humanSeats(r.seats ?? []).length, 0),
@@ -120,11 +125,11 @@ function render() {
 
   set("statOnline", s.online);
   set("statPublicRooms", s.publicRooms);
-  set("statPrivateRooms", s.privateRooms);
+  set("statPrivateRooms", s.privatePlayers);
   set("statRunning", s.running);
   setText("statOnlineSub", t("dash.playingCount", { count: s.seated }));
   setText("statPublicSub", s.waiting ? t("dash.seatsOpen", { count: s.openSeats }) : t("dash.noOpenSeats"));
-  setText("statPrivateSub", s.privateRooms ? t("dash.byCode") : t("common.dash"));
+  setText("statPrivateSub", s.privatePlayers ? t("dash.byCode") : t("common.dash"));
   setText("statRunningSub", s.running ? t("dash.roomsWaiting", { count: s.waiting }) : t("common.dash"));
 }
 
@@ -152,7 +157,7 @@ function wireOnlineList() {
 
 function onlineStatus(row) {
   if (row.inGame) return { label: t("status.playing"), kind: "play" };
-  if (row.roomCode) return { label: t("status.inRoom"), kind: "room" };
+  if (row.inRoom || row.roomCode) return { label: t("status.inRoom"), kind: "room" };
   return { label: t("status.inLobby"), kind: "wait" };
 }
 
