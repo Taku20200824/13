@@ -25,6 +25,15 @@ let mod = null; // ачаалсан SDK функцууд
 
 export const online = isConfigured;
 
+// Хөгжүүлэлт: http://localhost:5173/?emulator → `npm run emulators`-тэй
+// холбогдоно. Production өгөгдөлд хүрэхгүйгээр онлайн горимыг бүрэн
+// туршина. Зөвхөн localhost дээр ажиллана.
+function useEmulator() {
+  if (typeof location === "undefined") return false;
+  if (!["localhost", "127.0.0.1"].includes(location.hostname)) return false;
+  return new URLSearchParams(location.search).has("emulator");
+}
+
 export async function initFirebase() {
   if (!isConfigured) return null;
   if (app) return { app, auth, db };
@@ -38,6 +47,11 @@ export async function initFirebase() {
   app = core.initializeApp(firebaseConfig);
   auth = authMod.getAuth(app);
   db = storeMod.getFirestore(app);
+  if (useEmulator()) {
+    authMod.connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+    storeMod.connectFirestoreEmulator(db, "127.0.0.1", 8085);
+    console.info("Firebase emulator-т холбогдлоо (production биш).");
+  }
   mod = { ...authMod, ...storeMod };
   return { app, auth, db };
 }
@@ -85,7 +99,8 @@ export function ratingScore(stats = {}) {
 export async function ensureProfile(user, name) {
   const ref = userRef(user.uid);
   const snap = await mod.getDoc(ref);
-  const displayName = name || user.displayName || "Зочин";
+  // Дүрэм нэрийг 1–40 тэмдэгтээр хязгаарладаг
+  const displayName = String(name || user.displayName || "Зочин").trim().slice(0, 40) || "Зочин";
   if (!snap.exists()) {
     await mod.setDoc(ref, {
       displayName,
@@ -127,49 +142,55 @@ export async function getProfile(uid) {
 /**
  * Тоглоомын үр дүнг ranking-д НЭГ УДАА бүртгэнэ.
  *
- * `gameId` нь тоглоом бүрийн давтагдашгүй түлхүүр. Хэрэв тухайн түлхүүр
- * аль хэдийн бүртгэгдсэн бол дахин нэмэхгүй — өмнө нь өрөөнд дахин
- * ороход оноо давхар нэмэгддэг байсан.
+ * Firestore дүрэм үүнийг өрөөний төлөвтэй тулгаж шалгадаг:
+ *   • `rooms/{roomCode}.gameId == gameId`, төлөв нь `gameEnd`
+ *   • `state.players[seat].id` нь би, ялагч нь үнэхээр би эсэх
+ *   • оноо нь `state.players[seat].score`-той яг тэнцүү
+ *   • `users/{uid}/games/{gameId}` хамт үүснэ → давхар бүртгэл боломжгүй
+ * Тиймээс энд бичих тоо нь өрөөний төлөвөөс л гарах ёстой.
  *
  * @param {string} uid
- * @param {{gameId:string, won:boolean, roundWins:number, rounds:number, points:number}} stats
+ * @param {{gameId:string, roomCode:string, seat:number, won:boolean,
+ *          roundWins:number, rounds:number, points:number}} stats
  * @returns {Promise<boolean>} шинээр бүртгэсэн эсэх
  */
 export async function recordResult(uid, stats) {
-  if (!db || !stats?.gameId) return false;
+  if (!db || !stats?.gameId || !stats.roomCode || !Number.isInteger(stats.seat)) return false;
   let recorded = false;
 
   await mod.runTransaction(db, async (tx) => {
     const ref = userRef(uid);
-    const snap = await tx.get(ref);
+    const gameRef = mod.doc(db, "users", uid, "games", stats.gameId);
+    const [snap, gameSnap] = [await tx.get(ref), await tx.get(gameRef)];
     const data = snap.exists() ? snap.data() : null;
 
     // Ranking зөвхөн Google account-аар орсон хэрэглэгчдэд тооцогдоно.
     if (!snap.exists() || data?.anonymous === true) return;
-    if (data?.recordedGames?.includes(stats.gameId)) return; // давхардлаас хамгаална
+    if (gameSnap.exists() || data?.recordedGames?.includes(stats.gameId)) return; // давхардлаас хамгаална
 
-    const base = data ?? { games: 0, wins: 0, losses: 0, rounds: 0, roundWins: 0, points: 0 };
+    const rounds = Math.max(1, stats.rounds ?? 1);
     const nextStats = {
-      games: (base.games ?? 0) + 1,
-      wins: (base.wins ?? 0) + (stats.won ? 1 : 0),
-      losses: (base.losses ?? 0) + (stats.won ? 0 : 1),
-      rounds: (base.rounds ?? 0) + (stats.rounds ?? 0),
-      roundWins: (base.roundWins ?? 0) + (stats.roundWins ?? 0),
-      points: (base.points ?? 0) + (stats.points ?? 0),
+      games: (data.games ?? 0) + 1,
+      wins: (data.wins ?? 0) + (stats.won ? 1 : 0),
+      losses: (data.losses ?? 0) + (stats.won ? 0 : 1),
+      rounds: (data.rounds ?? 0) + rounds,
+      roundWins: (data.roundWins ?? 0) + Math.min(Math.max(0, stats.roundWins ?? 0), rounds),
+      points: (data.points ?? 0) + (stats.points ?? 0),
     };
-    // Сүүлийн 50 тоглоомын түлхүүр л хангалттай — баримт хэт томроохгүй
-    const history = [...(data?.recordedGames ?? []), stats.gameId].slice(-50);
+    // Сүүлийн 50 тоглоомын түлхүүр — харуулахад. Давхардлын жинхэнэ
+    // хамгаалалт нь games/{gameId} баримт.
+    const history = [...(data.recordedGames ?? []), stats.gameId].slice(-50);
 
-    const patch = {
+    tx.update(ref, {
       ...nextStats,
       rating: ratingScore(nextStats),
       recordedGames: history,
+      lastGameId: stats.gameId,
+      lastGameRoom: stats.roomCode,
+      lastGameSeat: stats.seat,
       updatedAt: mod.serverTimestamp(),
-    };
-    // rating-ыг баримтад хадгална — эрэмбэлэлт серверт хийгдэнэ
-    patch.rating = ratingScore(patch);
-
-    tx.update(ref, patch);
+    });
+    tx.set(gameRef, { won: Boolean(stats.won), at: mod.serverTimestamp() });
     recorded = true;
   });
 
@@ -239,7 +260,9 @@ export async function createRoom(user, options = {}) {
     await mod.setDoc(ref, {
       code,
       host: user.uid,
-      hostSeenAt: Date.now(),
+      // Серверийн цаг — дүрэм host-ын тасралтыг request.time-тай жишдэг.
+      // Client-ийн Date.now() бол цаг нь зөрсөн төхөөрөмжөөс хуурч болно.
+      hostSeenAt: mod.serverTimestamp(),
       status: "waiting",
       visibility: options.visibility === "public" ? "public" : "private",
       allowBots: options.allowBots ?? true,
@@ -262,7 +285,13 @@ export async function createRoom(user, options = {}) {
 
 export async function findActiveRoomForUser(uid) {
   if (!db || !uid) return null;
-  const q = mod.query(mod.collection(db, "rooms"), mod.limit(80));
+  // Өмнө нь шүүлтүүргүй эхний 80 өрөөг уншдаг байсан — өрөө олшрох тусам
+  // өөрийн өрөө жагсаалтад орохоо больдог байв. Одоо зөвхөн өөрийн өрөөнүүд.
+  const q = mod.query(
+    mod.collection(db, "rooms"),
+    mod.where("members", "array-contains", uid),
+    mod.limit(20),
+  );
   const snap = await mod.getDocs(q);
   const rooms = snap.docs
     .map((d) => {
@@ -298,10 +327,11 @@ export async function joinRoom(code, user) {
       ? data.members
       : [...(data.members ?? []), user.uid];
 
+    // host-ыг энд ХӨНДӨХГҮЙ: шинээр орж буй хүн зөвхөн суудал эзэлнэ
+    // (дүрэм үүнийг шаарддаг). Host алга бол claimHostIfStale шилжүүлнэ.
     tx.update(ref, {
       seats: serializeSeats(seats),
       members,
-      host: electHost(seats, data.host) ?? data.host,
       updatedAt: mod.serverTimestamp(),
     });
   });
@@ -338,14 +368,17 @@ export async function leaveRoom(code, uid) {
         return;
       }
 
-      const nextHost = electHost(seats, data.host === uid ? null : data.host);
-      tx.update(ref, {
+      const patch = {
         seats: serializeSeats(seats),
         members: (data.members ?? []).filter((m) => m !== uid),
-        host: nextHost,
-        hostSeenAt: nextHost === data.host ? (data.hostSeenAt ?? Date.now()) : Date.now(),
         updatedAt: mod.serverTimestamp(),
-      });
+      };
+      // Host өөрөө гарч байвал л host солигдоно
+      if (data.host === uid) {
+        patch.host = electHost(seats, null);
+        patch.hostSeenAt = mod.serverTimestamp();
+      }
+      tx.update(ref, patch);
     });
   } catch {
     /* өрөө аль хэдийн устсан бол алгасна */
@@ -366,14 +399,24 @@ export async function claimHostIfStale(code, uid) {
       const seats = deserializeSeats(data.seats);
       if (seatIndexOf(seats, uid) === -1) return;
 
-      const hostSeatMissing = seatIndexOf(seats, data.host) === -1;
-      if (!hostSeatMissing && !hostIsStale(data.hostSeenAt)) return;
+      const hostSeated = humanSeats(seats).some((seat) => seat.uid === data.host);
+      if (hostSeated && !hostIsStale(data.hostSeenAt)) return;
 
-      // Хамгийн бага дугаартай хүн л эзэмших эрхтэй — хоёр хүн зэрэг авахаас сэргийлнэ
-      const next = electHost(seats, hostSeatMissing ? null : data.host);
+      // Хуучин host-оос БУСАД хүмүүсийн хамгийн бага дугаартай нь л авна —
+      // хоёр хүн зэрэг авахаас сэргийлнэ. Өмнө нь electHost(seats, data.host)
+      // гэж дууддаг тул host суудалтай хэвээр (tab хаасан) бол тэр л буцаж
+      // сонгогдож, тоглоом мөнхөд царцдаг байв.
+      const next = electHost(
+        seats.map((seat) => (seat?.uid === data.host ? null : seat)),
+        null,
+      );
       if (next !== uid) return;
 
-      tx.update(roomRef(code), { host: uid, hostSeenAt: Date.now(), updatedAt: mod.serverTimestamp() });
+      tx.update(roomRef(code), {
+        host: uid,
+        hostSeenAt: mod.serverTimestamp(),
+        updatedAt: mod.serverTimestamp(),
+      });
       claimed = true;
     });
   } catch {
@@ -385,7 +428,7 @@ export async function claimHostIfStale(code, uid) {
 
 export async function touchHost(code) {
   try {
-    await mod.updateDoc(roomRef(code), { hostSeenAt: Date.now() });
+    await mod.updateDoc(roomRef(code), { hostSeenAt: mod.serverTimestamp() });
   } catch {
     /* эрхгүй эсвэл өрөө устсан */
   }
@@ -413,7 +456,7 @@ export async function startGameTransaction(code, uid, buildGame) {
       stateVersion: (data.stateVersion ?? 0) + 1,
       startedAt: Date.now(),
       gameId: `${code}-${Date.now()}`,
-      hostSeenAt: Date.now(),
+      hostSeenAt: mod.serverTimestamp(),
       updatedAt: mod.serverTimestamp(),
     });
     result = built;
@@ -430,7 +473,12 @@ export function watchRoom(code, callback) {
 }
 
 export function watchPublicRooms(callback) {
-  const q = mod.query(mod.collection(db, "rooms"), mod.limit(60));
+  // Дүрэм хувийн өрөөний жагсаалтыг хаадаг — зөвхөн public-ийг асууна.
+  const q = mod.query(
+    mod.collection(db, "rooms"),
+    mod.where("visibility", "==", "public"),
+    mod.limit(60),
+  );
   return mod.onSnapshot(q, (snap) => {
     const all = snap.docs.map((d) => {
       const data = d.data();
@@ -459,12 +507,18 @@ const presenceRef = (uid) => mod.doc(db, "presence", uid);
 export async function heartbeat(uid, info = {}) {
   if (!db || !uid) return;
   try {
+    const inRoom = Boolean(info.roomCode);
+    const roomPublic = inRoom && info.roomPublic === true;
     await mod.setDoc(presenceRef(uid), {
       uid,
       lastSeen: Date.now(),
-      roomCode: info.roomCode ?? null,
+      // Хувийн өрөөний кодыг бусдад ХАРУУЛАХГҮЙ — өмнө нь presence-ээр
+      // задарч, урилгагүй хүн орж ирэх боломжтой байв.
+      roomCode: roomPublic ? info.roomCode : null,
+      inRoom,
+      roomPublic,
       inGame: Boolean(info.inGame),
-      name: info.name ?? null,
+      name: info.name ? String(info.name).slice(0, 40) : null,
     });
   } catch {
     /* сүлжээ тасарсан — дараагийн цохилтод дахин оролдоно */
@@ -559,7 +613,12 @@ export async function publishState(code, { state, status, seats }) {
     const snap = await tx.get(ref);
     if (!snap.exists()) throw new Error("Өрөө олдсонгүй.");
     const current = snap.data().stateVersion ?? 0;
-    const patch = { state, stateVersion: current + 1, hostSeenAt: Date.now(), updatedAt: mod.serverTimestamp() };
+    const patch = {
+      state,
+      stateVersion: current + 1,
+      hostSeenAt: mod.serverTimestamp(),
+      updatedAt: mod.serverTimestamp(),
+    };
     if (status) patch.status = status;
     if (seats) patch.seats = serializeSeats(seats);
     tx.update(ref, patch);

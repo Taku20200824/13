@@ -26,7 +26,7 @@ const dict = {
     "aria.liveStats": "Шууд үзүүлэлт",
     "stats.online": "Онлайн тоглогч",
     "stats.publicRooms": "Public өрөө",
-    "stats.privateRooms": "Private өрөө",
+    "stats.privateRooms": "Private өрөөнд",
     "stats.running": "Явагдаж буй тоглоом",
 
     "play.heading": "Тоглох",
@@ -256,7 +256,7 @@ const dict = {
     "aria.liveStats": "Live stats",
     "stats.online": "Players online",
     "stats.publicRooms": "Public rooms",
-    "stats.privateRooms": "Private rooms",
+    "stats.privateRooms": "In private rooms",
     "stats.running": "Games in progress",
 
     "play.heading": "Play",

@@ -27,6 +27,7 @@ import {
   seatCount,
   humanSeats,
   occupiedSeats,
+  toMillis,
 } from "./seats.js";
 import {
   $,
@@ -323,8 +324,11 @@ function scheduleBot() {
 /* ══════════ Өрөө ══════════ */
 
 const isHost = () => app.room && app.user && app.room.host === app.user.uid;
-const hostLooksStale = () =>
-  app.room?.hostSeenAt && Date.now() - app.room.hostSeenAt > HOST_WARN_MS;
+// hostSeenAt нь одоо серверийн Timestamp (хуучин өрөөнд тоо) — toMillis хоёуланг нь уншина
+const hostLooksStale = () => {
+  const seen = toMillis(app.room?.hostSeenAt);
+  return seen > 0 && Date.now() - seen > HOST_WARN_MS;
+};
 
 const BOT_LEVELS = {
   normal: DIFFICULTY.NORMAL,
@@ -383,7 +387,7 @@ function enterRoom(code) {
   showScreen("room");
   startHostWatchdog();
   setActiveRoom(code);
-  setDashboardContext({ roomCode: code, inGame: false });
+  setDashboardContext({ roomCode: code, roomPublic: false, inGame: false });
 
   app.unsub.push(
     fb.watchRoom(code, (room) => {
@@ -398,6 +402,11 @@ function enterRoom(code) {
       // Суудлын дугаар нь тогтвортой — массивын байрлал биш, seatIndex
       const seat = seatIndexOf(room.seats, app.user.uid);
       if (seat === -1) {
+        // Нэгдсэний дараах ЭХНИЙ snapshot нь local cache-ээс (нэгдэхээс
+        // өмнөх хуучин хувилбар) ирж болно. Тэр үед "та гарсан" гээд
+        // lobby руу буцаадаг байв. Нэг ч удаа суудалтай харагдаагүй бол
+        // серверийн шинэ snapshot-ыг хүлээнэ.
+        if (app.myIndex === -1) return;
         toast(t("room.youLeft"));
         exitToLobby();
         return;
@@ -411,11 +420,13 @@ function enterRoom(code) {
         resubscribeHand();
       }
 
+      const roomPublic = room.visibility === "public";
       if (room.status === "waiting") {
+        setDashboardContext({ roomCode: code, roomPublic, inGame: false });
         renderRoom(room);
         showScreen("room");
       } else if (room.status === "playing" || room.status === "finished") {
-        setDashboardContext({ roomCode: code, inGame: true });
+        setDashboardContext({ roomCode: code, roomPublic, inGame: true });
         onRoomState(room);
       }
     }),
@@ -919,13 +930,18 @@ function recordGameResult(game, won) {
   if (app.recordedGameId === gameId) return;
   app.recordedGameId = gameId;
 
+  // Тоо нь өрөөний төлөвөөс гарна — Firestore дүрэм яг үүнтэй тулгадаг.
+  // (app.stats нь хуудас дахин ачаалбал тэглэгддэг тул найдвартай биш.)
+  const me = game.players[app.myIndex];
+  const rounds = Math.max(1, game.round ?? 1);
   fb.recordResult(app.user.uid, {
     gameId,
+    roomCode: app.roomCode,
+    seat: app.myIndex,
     won,
-    name: app.user.displayName,
-    rounds: app.stats.rounds,
-    roundWins: app.stats.roundWins,
-    points: app.stats.points,
+    rounds,
+    roundWins: Math.min(app.stats.roundWins, rounds),
+    points: me?.score ?? 0,
   })
     .then((saved) => {
       if (saved) loadLeaderboard();
@@ -1037,7 +1053,7 @@ function exitToLobby() {
   clearSubscriptions();
   stopHostWatchdog();
   setActiveRoom(null);
-  setDashboardContext({ roomCode: null, inGame: false });
+  setDashboardContext({ roomCode: null, roomPublic: false, inGame: false });
   clearTimeout(app.botTimer);
   app.game = null;
   app.room = null;

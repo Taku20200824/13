@@ -3195,3 +3195,639 @@ input {
     padding-right: 56px;
   }
 }
+
+/* ══════════════════════════════════════════════════
+   NOIR & GOLD — "Ширээ" горимын шинэчилсэн дүр төрх
+   ──────────────────────────────────────────────────
+   Зөвхөн [data-theme="felt"]-д хамаарна — "Код" горим хөндөгдөхгүй.
+   Бүтэц (grid, хэмжээ, responsive) дээрх дүрмүүдээрээ үлдэнэ; энд
+   зөвхөн өнгө, гэрэл, үсгийн хэв, гадаргуу л солигдоно.
+   ══════════════════════════════════════════════════ */
+
+[data-theme="felt"] {
+  --felt-900: #040907;
+  --felt-800: #07110d;
+  --felt-700: #0b1913;
+  --felt-600: #10221b;
+  --line: rgba(242, 207, 122, 0.16);
+  --line-soft: rgba(255, 255, 255, 0.065);
+
+  --ink: #f4f1e8;
+  --ink-soft: #b5c2b9;
+  --ink-faint: #74877d;
+
+  --gold: #f2cf7a;
+  --gold-deep: #b8893a;
+  --gold-grad: linear-gradient(135deg, #fff3cc 0%, #f2cf7a 30%, #c4923f 64%, #f7df9c 100%);
+  --accent: #3fe2a8;
+  --accent-deep: #129468;
+  --accent-hi: #6af0bf;
+  --accent-hi2: #1fae7d;
+  --on-gold: #1d1404;
+
+  --glow: #0f3427;
+
+  --felt-1: #22935f;
+  --felt-2: #136746;
+  --felt-3: #0a422e;
+  --felt-4: #05261a;
+  --rail: #120d07;
+  --rail-edge: rgba(242, 207, 122, 0.5);
+  --spotlight: rgba(255, 244, 214, 0.09);
+
+  --panel-1: rgba(18, 40, 32, 0.66);
+  --panel-2: rgba(4, 12, 9, 0.72);
+  --panel-edge: rgba(242, 207, 122, 0.14);
+
+  --card-face: #fbf8f0;
+  --card-edge: #e3dccb;
+  --card-red: #d22942;
+  --card-black: #15191a;
+  --back-1: #1b4a35;
+  --back-2: #0c2a1e;
+  --back-line: rgba(242, 207, 122, 0.22);
+  --back-edge: rgba(242, 207, 122, 0.5);
+
+  --font-display: "Montserrat", var(--font-ui); /* Ө, Ү бүрэн дэмждэг */
+  --hairline: linear-gradient(
+    140deg,
+    rgba(242, 207, 122, 0.55),
+    rgba(255, 255, 255, 0.05) 38%,
+    rgba(255, 255, 255, 0.03) 62%,
+    rgba(63, 226, 168, 0.32)
+  );
+  --glass: linear-gradient(180deg, rgba(17, 37, 30, 0.78), rgba(5, 13, 10, 0.84));
+}
+
+/* ── Хуудасны дэвсгэр: гүн харанхуй + аврора гэрэл + хөзрийн өнгөний хээ ── */
+
+[data-theme="felt"] body {
+  background:
+    radial-gradient(900px 520px at 12% -8%, rgba(34, 147, 95, 0.22), transparent 62%),
+    radial-gradient(800px 520px at 100% 0%, rgba(242, 207, 122, 0.1), transparent 60%),
+    radial-gradient(1200px 800px at 50% 120%, rgba(18, 104, 70, 0.22), transparent 60%),
+    linear-gradient(180deg, var(--felt-800), var(--felt-900));
+  background-attachment: fixed;
+}
+
+[data-theme="felt"] body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0.05;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120' viewBox='0 0 120 120'%3E%3Cg fill='%23f2cf7a' font-family='serif' font-size='22'%3E%3Ctext x='12' y='34'%3E%E2%99%A0%3C/text%3E%3Ctext x='72' y='34'%3E%E2%99%A5%3C/text%3E%3Ctext x='42' y='94'%3E%E2%99%A3%3C/text%3E%3Ctext x='100' y='94'%3E%E2%99%A6%3C/text%3E%3C/g%3E%3C/svg%3E");
+  mask-image: radial-gradient(ellipse at 50% 30%, #000 0%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 0%, transparent 75%);
+}
+
+[data-theme="felt"] body::after {
+  content: "";
+  position: fixed;
+  inset: -20%;
+  z-index: -1;
+  pointer-events: none;
+  background:
+    radial-gradient(40% 30% at 30% 30%, rgba(63, 226, 168, 0.08), transparent 70%),
+    radial-gradient(35% 28% at 72% 64%, rgba(242, 207, 122, 0.07), transparent 70%);
+  animation: aurora 26s ease-in-out infinite alternate;
+}
+
+@keyframes aurora {
+  to {
+    transform: translate3d(6%, -4%, 0) rotate(8deg) scale(1.08);
+  }
+}
+
+/* ── Үсгийн хэв ── */
+
+[data-theme="felt"] .auth-brand h1,
+[data-theme="felt"] .brand,
+[data-theme="felt"] .stat-num,
+[data-theme="felt"] .panel h2 {
+  font-family: var(--font-display);
+}
+
+/* ── Шилэн самбарууд: алтан нимгэн хүрээ ── */
+
+[data-theme="felt"] .panel,
+[data-theme="felt"] .stat,
+[data-theme="felt"] .auth-card {
+  border: 1px solid transparent;
+  background:
+    var(--glass) padding-box,
+    var(--hairline) border-box;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    0 24px 60px -30px rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(14px) saturate(1.15);
+  -webkit-backdrop-filter: blur(14px) saturate(1.15);
+}
+
+[data-theme="felt"] .panel h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  color: var(--gold);
+}
+
+[data-theme="felt"] .panel h2::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  transform: rotate(45deg);
+  background: var(--gold-grad);
+  box-shadow: 0 0 10px rgba(242, 207, 122, 0.6);
+  flex: none;
+}
+
+/* ── Нэвтрэх дэлгэц ── */
+
+[data-theme="felt"] .auth-card {
+  position: relative;
+  width: min(420px, 100%);
+  padding: 40px 32px 30px;
+  border-radius: 26px;
+}
+
+[data-theme="felt"] .auth-card::before {
+  content: "";
+  position: absolute;
+  inset: -60px -40px auto;
+  height: 260px;
+  z-index: -1;
+  pointer-events: none;
+  background: radial-gradient(closest-side, rgba(242, 207, 122, 0.18), transparent);
+  filter: blur(10px);
+}
+
+[data-theme="felt"] .brand-cards {
+  gap: 0;
+  margin-bottom: 22px;
+  height: 78px;
+  align-items: flex-end;
+}
+
+[data-theme="felt"] .brand-card {
+  width: 50px;
+  height: 70px;
+  margin: 0 -5px;
+  border-radius: 9px;
+  font-size: 26px;
+  border: 1px solid var(--card-edge);
+  background: linear-gradient(152deg, #fff, var(--card-face));
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 14px 26px -10px rgba(0, 0, 0, 0.75);
+  transform-origin: 50% 120%;
+  animation:
+    fanIn 0.9s var(--ease) backwards,
+    floaty 5s ease-in-out 1s infinite;
+}
+
+[data-theme="felt"] .brand-card:nth-child(1) {
+  --rot: -18deg;
+  animation-delay: 0.05s, 1s;
+}
+[data-theme="felt"] .brand-card:nth-child(2) {
+  --rot: -6deg;
+  animation-delay: 0.12s, 1.3s;
+}
+[data-theme="felt"] .brand-card:nth-child(3) {
+  --rot: 6deg;
+  animation-delay: 0.19s, 1.6s;
+}
+[data-theme="felt"] .brand-card:nth-child(4) {
+  --rot: 18deg;
+  animation-delay: 0.26s, 1.9s;
+}
+
+@keyframes fanIn {
+  from {
+    opacity: 0;
+    transform: rotate(0deg) translateY(20px);
+  }
+}
+
+@keyframes floaty {
+  0%,
+  100% {
+    transform: rotate(var(--rot)) translateY(0);
+  }
+  50% {
+    transform: rotate(var(--rot)) translateY(-5px);
+  }
+}
+
+[data-theme="felt"] .auth-brand h1 {
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  filter: drop-shadow(0 4px 18px rgba(242, 207, 122, 0.25));
+}
+
+[data-theme="felt"] .auth-brand p {
+  color: var(--ink-soft);
+  letter-spacing: 0.02em;
+}
+
+[data-theme="felt"] .auth-divider {
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+  font-size: 10.5px;
+}
+
+[data-theme="felt"] .auth-divider::before,
+[data-theme="felt"] .auth-divider::after {
+  background: linear-gradient(90deg, transparent, rgba(242, 207, 122, 0.3), transparent);
+}
+
+/* ── Товчнууд ── */
+
+[data-theme="felt"] .btn {
+  border-color: rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, rgba(30, 58, 47, 0.9), rgba(14, 30, 24, 0.9));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
+    0 6px 16px -10px rgba(0, 0, 0, 0.9);
+  letter-spacing: 0.01em;
+}
+
+[data-theme="felt"] .btn:hover:not(:disabled) {
+  border-color: rgba(242, 207, 122, 0.4);
+  background: linear-gradient(180deg, rgba(38, 72, 58, 0.95), rgba(17, 36, 29, 0.95));
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 0 3px rgba(242, 207, 122, 0.06);
+}
+
+[data-theme="felt"] .btn--primary {
+  position: relative;
+  overflow: hidden;
+  border-color: rgba(255, 236, 180, 0.6);
+  background: var(--gold-grad);
+  color: var(--on-gold);
+  font-weight: 700;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -2px 0 rgba(120, 80, 20, 0.35),
+    0 10px 26px -10px rgba(242, 207, 122, 0.6);
+}
+
+[data-theme="felt"] .btn--primary::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(110deg, transparent 30%, rgba(255, 255, 255, 0.55) 50%, transparent 70%);
+  transform: translateX(-120%);
+  transition: transform 0.6s var(--ease);
+  pointer-events: none;
+}
+
+[data-theme="felt"] .btn--primary:hover:not(:disabled) {
+  background: var(--gold-grad);
+  border-color: rgba(255, 244, 210, 0.9);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    inset 0 -2px 0 rgba(120, 80, 20, 0.35),
+    0 14px 34px -10px rgba(242, 207, 122, 0.8);
+}
+
+[data-theme="felt"] .btn--primary:hover:not(:disabled)::after {
+  transform: translateX(120%);
+}
+
+[data-theme="felt"] .btn--google {
+  background: linear-gradient(180deg, #ffffff, #eef0ec);
+  color: #1f2621;
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 10px 24px -12px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="felt"] .btn--google:hover:not(:disabled) {
+  background: #fff;
+  border-color: transparent;
+  box-shadow:
+    0 0 0 3px rgba(255, 255, 255, 0.12),
+    0 12px 28px -12px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="felt"] .btn--pass {
+  background: linear-gradient(180deg, rgba(80, 24, 30, 0.55), rgba(40, 12, 16, 0.6));
+  border-color: rgba(239, 107, 107, 0.4);
+}
+
+[data-theme="felt"] .btn--ghost {
+  background: rgba(255, 255, 255, 0.02);
+  box-shadow: none;
+}
+
+/* ── Талбар ── */
+
+[data-theme="felt"] input[type="text"] {
+  background: rgba(0, 0, 0, 0.35);
+  border-color: rgba(255, 255, 255, 0.08);
+}
+
+[data-theme="felt"] input[type="text"]:focus {
+  border-color: rgba(242, 207, 122, 0.6);
+  box-shadow: 0 0 0 4px rgba(242, 207, 122, 0.1);
+  outline: none;
+}
+
+/* ── Topbar ── */
+
+[data-theme="felt"] .topbar {
+  background: linear-gradient(180deg, rgba(4, 9, 7, 0.86), rgba(4, 9, 7, 0.6));
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, rgba(242, 207, 122, 0.35), transparent) 1;
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+}
+
+[data-theme="felt"] .brand {
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+[data-theme="felt"] .brand-mark {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  background: var(--gold-grad);
+  font-family: var(--font-display);
+  font-weight: 800;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.7),
+    0 0 0 1px rgba(255, 236, 180, 0.4),
+    0 6px 20px -4px rgba(242, 207, 122, 0.55);
+}
+
+[data-theme="felt"] .avatar {
+  border-color: rgba(242, 207, 122, 0.35);
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4);
+}
+
+/* ── Шууд үзүүлэлт ── */
+
+[data-theme="felt"] .stat {
+  position: relative;
+  overflow: hidden;
+  padding: 18px 20px;
+  border-radius: 18px;
+  transition: transform 0.2s var(--ease);
+}
+
+[data-theme="felt"] .stat:hover {
+  transform: translateY(-2px);
+}
+
+[data-theme="felt"] .stat::after {
+  content: "";
+  position: absolute;
+  right: -30px;
+  top: -30px;
+  width: 110px;
+  height: 110px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(242, 207, 122, 0.14), transparent);
+  pointer-events: none;
+}
+
+[data-theme="felt"] .stat:first-child::after {
+  background: radial-gradient(closest-side, rgba(63, 226, 168, 0.2), transparent);
+}
+
+[data-theme="felt"] .stat-num {
+  font-size: 30px;
+  font-weight: 700;
+  background: var(--gold-grad);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+[data-theme="felt"] .stat:first-child .stat-num {
+  background: linear-gradient(135deg, #b9ffe4, var(--accent) 50%, #17a675);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+
+[data-theme="felt"] .stat:first-child .stat-label::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 7px;
+  border-radius: 50%;
+  vertical-align: 1px;
+  background: var(--accent);
+  box-shadow: 0 0 0 0 rgba(63, 226, 168, 0.6);
+  animation: livePing 1.8s ease-out infinite;
+}
+
+@keyframes livePing {
+  70% {
+    box-shadow: 0 0 0 7px rgba(63, 226, 168, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(63, 226, 168, 0);
+  }
+}
+
+[data-theme="felt"] .stat-label {
+  letter-spacing: 0.12em;
+  font-size: 11px;
+}
+
+/* ── Lobby ── */
+
+[data-theme="felt"] .play-card {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 18px;
+  padding: 22px 20px;
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(242, 207, 122, 0.09), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(0, 0, 0, 0.25));
+  transition:
+    transform 0.2s var(--ease),
+    border-color 0.2s,
+    box-shadow 0.2s;
+}
+
+[data-theme="felt"] .play-card:hover {
+  transform: translateY(-3px);
+  border-color: rgba(242, 207, 122, 0.45);
+  background:
+    radial-gradient(120% 90% at 100% 0%, rgba(242, 207, 122, 0.16), transparent 55%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(0, 0, 0, 0.2));
+  box-shadow: 0 18px 40px -20px rgba(242, 207, 122, 0.45);
+}
+
+[data-theme="felt"] .play-icon {
+  display: grid;
+  place-items: center;
+  width: 42px;
+  height: 42px;
+  margin-bottom: 12px;
+  border-radius: 12px;
+  font-size: 22px;
+  color: var(--gold);
+  background: linear-gradient(160deg, rgba(242, 207, 122, 0.18), rgba(242, 207, 122, 0.04));
+  border: 1px solid rgba(242, 207, 122, 0.25);
+}
+
+[data-theme="felt"] .play-card strong {
+  font-size: 16px;
+}
+
+[data-theme="felt"] .host-option {
+  border-radius: 14px;
+  background: rgba(0, 0, 0, 0.22);
+  transition:
+    border-color 0.18s,
+    background 0.18s;
+}
+
+[data-theme="felt"] .host-option:hover {
+  border-color: rgba(242, 207, 122, 0.25);
+}
+
+[data-theme="felt"] .host-option:has(input:checked) {
+  border-color: rgba(242, 207, 122, 0.6);
+  background: linear-gradient(180deg, rgba(242, 207, 122, 0.12), rgba(242, 207, 122, 0.03));
+  box-shadow: inset 0 0 0 1px rgba(242, 207, 122, 0.12);
+}
+
+[data-theme="felt"] .host-option input {
+  accent-color: var(--gold-deep);
+}
+
+[data-theme="felt"] .join-form input {
+  font-family: var(--font-display);
+  letter-spacing: 0.3em;
+}
+
+/* ── Ширээ: гүн фетр, алтан шугамтай кант ── */
+
+[data-theme="felt"] .felt {
+  box-shadow:
+    inset 0 0 0 1px rgba(242, 207, 122, 0.35),
+    inset 0 0 0 2px rgba(0, 0, 0, 0.55),
+    inset 0 0 0 10px rgba(255, 255, 255, 0.025),
+    inset 0 0 0 11px rgba(242, 207, 122, 0.12),
+    inset 0 2px 1px rgba(255, 255, 255, 0.07),
+    inset 0 0 120px rgba(0, 0, 0, 0.5),
+    0 0 0 12px var(--rail),
+    0 0 0 13px rgba(242, 207, 122, 0.55),
+    0 0 0 14px rgba(0, 0, 0, 0.7),
+    0 0 0 22px rgba(18, 13, 7, 0.55),
+    0 40px 90px -24px rgba(0, 0, 0, 0.9),
+    0 0 120px -20px rgba(34, 147, 95, 0.35);
+}
+
+/* Ширээний голд бүдэг "13" — фетрт хэвлэсэн лого шиг */
+[data-theme="felt"] .felt::before {
+  content: "13";
+  position: absolute;
+  left: 50%;
+  top: 54%;
+  transform: translate(-50%, -50%);
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: clamp(90px, 16vw, 200px);
+  letter-spacing: -0.06em;
+  line-height: 1;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(242, 207, 122, 0.09);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ── Суудал ── */
+
+[data-theme="felt"] .seat-card {
+  border-radius: 16px;
+}
+
+[data-theme="felt"] .seat-card[data-owner]:not([data-turn]) {
+  border-color: rgba(242, 207, 122, 0.6);
+  box-shadow: 0 0 24px -8px rgba(242, 207, 122, 0.45);
+}
+
+[data-theme="felt"] .you {
+  border-radius: 22px;
+  border: 1px solid transparent;
+  background:
+    linear-gradient(180deg, rgba(10, 24, 19, 0.85), rgba(3, 9, 7, 0.9)) padding-box,
+    var(--hairline) border-box;
+  box-shadow: 0 -10px 40px -20px rgba(0, 0, 0, 0.9);
+}
+
+[data-theme="felt"] .you[data-turn] {
+  background:
+    linear-gradient(180deg, rgba(16, 52, 39, 0.9), rgba(3, 12, 9, 0.92)) padding-box,
+    linear-gradient(140deg, var(--accent), rgba(63, 226, 168, 0.1) 45%, rgba(242, 207, 122, 0.5)) border-box;
+  box-shadow: 0 0 40px -12px rgba(63, 226, 168, 0.55);
+}
+
+/* ── Хөзөр ── */
+
+[data-theme="felt"] .card {
+  box-shadow:
+    inset 0 1px 0 #fff,
+    inset 0 -1px 0 rgba(0, 0, 0, 0.06),
+    0 1px 1px rgba(0, 0, 0, 0.25),
+    0 10px 20px -8px rgba(0, 0, 0, 0.6);
+}
+
+[data-theme="felt"] .card .index b {
+  font-family: var(--font-display);
+  font-weight: 700;
+  letter-spacing: -0.06em;
+}
+
+[data-theme="felt"] .hand .card[data-selected] {
+  border-color: var(--gold);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 0 0 2px var(--gold),
+    0 0 28px -2px rgba(242, 207, 122, 0.75),
+    0 22px 36px -12px rgba(0, 0, 0, 0.8);
+}
+
+[data-theme="felt"] .hand .card[data-hint] {
+  border-color: var(--accent);
+  box-shadow:
+    inset 0 1px 0 #fff,
+    0 0 0 2px var(--accent),
+    0 0 22px -4px rgba(63, 226, 168, 0.7),
+    0 10px 20px -8px rgba(0, 0, 0, 0.6);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-theme="felt"] body::after,
+  [data-theme="felt"] .brand-card,
+  [data-theme="felt"] .stat:first-child .stat-label::before {
+    animation: none;
+  }
+}
+
+[data-theme="felt"] .panel-head--compact h3,
+[data-theme="felt"] .room-chat h3 {
+  font-family: var(--font-display);
+  letter-spacing: 0.14em;
+  color: var(--gold);
+  opacity: 0.85;
+}
